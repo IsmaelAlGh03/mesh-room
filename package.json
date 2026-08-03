@@ -1,0 +1,20 @@
+{
+  "name": "mesh-room",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Peer-to-peer video rooms for up to 6 people, built on hand-written WebRTC",
+  "license": "MIT",
+  "scripts": {
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "dev": "concurrently -n server,client -c blue,magenta \"npm run dev:server\" \"npm run dev:client\"",
+    "build": "cd server && npm run build && cd ../client && npm run build",
+    "test:server": "cd server && npm test",
+    "test:client": "cd client && npm test",
+    "test": "npm run test:server && npm run test:client",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
