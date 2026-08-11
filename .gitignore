@@ -22,3 +22,6 @@ Thumbs.db
 .idea/
 
 docs/
+.codegraph/
+.superpowers/
+CLAUDE.md
