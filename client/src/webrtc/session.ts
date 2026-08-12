@@ -30,6 +30,8 @@ export interface MeshSession {
   subscribe(listener: () => void): () => void;
   join(): Promise<void>;
   leave(): void;
+  toggleMic(): void;
+  toggleCamera(): void;
 }
 
 type SocketListener = (...args: any[]) => void;
@@ -80,12 +82,22 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
   let status: SessionStatus = 'idle';
   let localStream: MediaStream | null = null;
   let mediaError: string | null = null;
+  let connectedAt: number | null = null;
   let state: SessionState = {
     status,
     localStream: null,
     participants: [],
     mediaError: null,
+    micOn: false,
+    cameraOn: false,
+    connectedAt: null,
   };
+
+  function tracksEnabled(kind: 'audio' | 'video'): boolean {
+    const tracks =
+      kind === 'audio' ? (localStream?.getAudioTracks() ?? []) : (localStream?.getVideoTracks() ?? []);
+    return tracks.some((track) => track.enabled);
+  }
 
   function publish(): void {
     const participants: PeerParticipant[] = [...peers.values()].map((entry) => ({
@@ -95,8 +107,26 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
       quality: entry.quality,
     }));
 
-    state = { status, localStream, participants, mediaError };
+    state = {
+      status,
+      localStream,
+      participants,
+      mediaError,
+      micOn: tracksEnabled('audio'),
+      cameraOn: tracksEnabled('video'),
+      connectedAt,
+    };
     for (const listener of listeners) listener();
+  }
+
+  function toggle(kind: 'audio' | 'video'): void {
+    const tracks =
+      kind === 'audio' ? (localStream?.getAudioTracks() ?? []) : (localStream?.getVideoTracks() ?? []);
+    if (tracks.length === 0) return;
+
+    const turningOn = !tracksEnabled(kind);
+    for (const track of tracks) track.enabled = turningOn;
+    publish();
   }
 
   function bind<Args extends unknown[]>(event: string, handler: (...args: Args) => void): void {
@@ -213,6 +243,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
 
     bind('existing-peers', (existing: Participant[]) => {
       status = 'connected';
+      connectedAt ??= Date.now();
       for (const participant of existing) addPeer(participant, true);
       publish();
     });
@@ -249,7 +280,8 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
 
     socket?.disconnect();
     socket = null;
-    status = 'idle';
+    status = 'left';
+    connectedAt = null;
     publish();
   }
 
@@ -261,5 +293,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     },
     join,
     leave,
+    toggleMic: () => toggle('audio'),
+    toggleCamera: () => toggle('video'),
   };
 }

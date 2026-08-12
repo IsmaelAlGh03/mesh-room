@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { MeshNode } from './MeshNode';
 
 export type TileState = 'connecting' | 'connected' | 'reconnecting';
@@ -8,6 +8,8 @@ interface ParticipantTileProps {
   stream: MediaStream | null;
   state: TileState;
   isLocal?: boolean;
+  micOn?: boolean;
+  cameraOn?: boolean;
   relayed?: boolean;
   degraded?: boolean;
   fields?: string[];
@@ -24,7 +26,12 @@ const REMOTE_STATUS: Record<TileState, string | null> = {
 
 function videoSettings(stream: MediaStream | null): MediaTrackSettings | null {
   const track = stream?.getVideoTracks()[0];
-  return track === undefined ? null : track.getSettings();
+  if (track === undefined || track.enabled === false) return null;
+  return track.getSettings();
+}
+
+function hasCamera(stream: MediaStream | null): boolean {
+  return (stream?.getVideoTracks().length ?? 0) > 0;
 }
 
 export function ParticipantTile({
@@ -32,14 +39,16 @@ export function ParticipantTile({
   stream,
   state,
   isLocal = false,
+  micOn = true,
+  cameraOn = true,
   relayed = false,
   degraded: isDegraded = false,
   fields,
   health = null,
 }: ParticipantTileProps): JSX.Element {
   const video = useRef<HTMLVideoElement>(null);
-  const settings = useMemo(() => videoSettings(stream), [stream]);
-  const hasVideo = settings !== null;
+  const settings = videoSettings(stream);
+  const hasVideo = settings !== null && (!isLocal || cameraOn);
 
   useEffect(() => {
     if (video.current !== null) video.current.srcObject = stream;
@@ -48,12 +57,16 @@ export function ParticipantTile({
   const statusWord = isLocal
     ? hasVideo
       ? null
-      : 'No camera'
+      : hasCamera(stream)
+        ? 'Camera off'
+        : 'No camera'
     : (REMOTE_STATUS[state] ?? (hasVideo ? null : 'Camera off'));
 
   const localFields = hasVideo
     ? ['Local', `${settings?.width ?? 0}×${settings?.height ?? 0}`, `${Math.round(settings?.frameRate ?? 0)}fps`]
-    : ['Local', 'audio only'];
+    : ['Local', hasCamera(stream) ? 'camera off' : 'audio only'];
+
+  if (isLocal && !micOn) localFields.push('Mic off');
 
   const readout = isLocal ? localFields : (fields ?? [REMOTE_STATUS[state] ?? 'Connected']);
   const degraded = relayed || isDegraded || state === 'reconnecting';

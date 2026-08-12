@@ -5,6 +5,8 @@ import type { PeerParticipant } from '../types';
 interface VideoGridProps {
   localStream: MediaStream | null;
   participants: PeerParticipant[];
+  micOn?: boolean;
+  cameraOn?: boolean;
 }
 
 const COLUMNS = [1, 1, 2, 3, 2, 3, 3];
@@ -21,7 +23,12 @@ function tileState(connectionState: RTCPeerConnectionState): TileState {
   return 'connecting';
 }
 
-export function VideoGrid({ localStream, participants }: VideoGridProps): JSX.Element {
+export function VideoGrid({
+  localStream,
+  participants,
+  micOn = true,
+  cameraOn = true,
+}: VideoGridProps): JSX.Element {
   const headcount = participants.length + 1;
   const columns = COLUMNS[Math.min(headcount, 6)] ?? 3;
 
@@ -30,7 +37,14 @@ export function VideoGrid({ localStream, participants }: VideoGridProps): JSX.El
       data-columns={columns}
       className={`grid gap-4 sm:gap-gutter ${COLUMN_CLASS[columns] ?? COLUMN_CLASS[3]}`}
     >
-      <ParticipantTile displayName="You" stream={localStream} state="connected" isLocal />
+      <ParticipantTile
+        displayName="You"
+        stream={localStream}
+        state="connected"
+        isLocal
+        micOn={micOn}
+        cameraOn={cameraOn}
+      />
       {participants.map((peer) => (
         <ParticipantTile
           key={peer.socketId}

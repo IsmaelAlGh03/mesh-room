@@ -11,13 +11,16 @@ export interface PeerParticipant extends Participant {
   quality: LinkQuality | null;
 }
 
-export type SessionStatus = 'idle' | 'connecting' | 'connected' | 'room-full';
+export type SessionStatus = 'idle' | 'connecting' | 'connected' | 'room-full' | 'left';
 
 export interface SessionState {
   status: SessionStatus;
   localStream: MediaStream | null;
   participants: PeerParticipant[];
   mediaError: string | null;
+  micOn: boolean;
+  cameraOn: boolean;
+  connectedAt: number | null;
 }
 
 export type SignalData =

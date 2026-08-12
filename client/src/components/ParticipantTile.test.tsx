@@ -7,11 +7,17 @@ function streamWithVideo(): MediaStream {
     kind: 'video',
     getSettings: () => ({ width: 1280, height: 720, frameRate: 30 }),
   };
-  return { getVideoTracks: () => [track] } as unknown as MediaStream;
+  return {
+    getVideoTracks: () => [track],
+    getAudioTracks: () => [{ kind: 'audio', enabled: true }],
+  } as unknown as MediaStream;
 }
 
 function streamWithoutVideo(): MediaStream {
-  return { getVideoTracks: () => [] } as unknown as MediaStream;
+  return {
+    getVideoTracks: () => [],
+    getAudioTracks: () => [{ kind: 'audio', enabled: true }],
+  } as unknown as MediaStream;
 }
 
 describe('ParticipantTile', () => {
@@ -37,6 +43,49 @@ describe('ParticipantTile', () => {
     expect(screen.getByText('You')).toBeInTheDocument();
     expect(screen.getByText('1280×720')).toBeInTheDocument();
     expect(screen.getByText('30fps')).toBeInTheDocument();
+  });
+
+  it('clears your tile when you turn your own camera off, rather than freezing a frame', () => {
+    const { container } = render(
+      <ParticipantTile
+        displayName="Ismael"
+        stream={streamWithVideo()}
+        state="connected"
+        isLocal
+        cameraOn={false}
+      />,
+    );
+
+    expect(screen.getByText('Camera off')).toBeInTheDocument();
+    expect(screen.queryByText('No camera')).not.toBeInTheDocument();
+    expect(container.querySelector('video')).toBeNull();
+  });
+
+  it('distinguishes a camera you turned off from one you never had', () => {
+    render(
+      <ParticipantTile
+        displayName="Ismael"
+        stream={streamWithoutVideo()}
+        state="connected"
+        isLocal
+      />,
+    );
+
+    expect(screen.getByText('No camera')).toBeInTheDocument();
+  });
+
+  it('says on your own readout when your mic is muted', () => {
+    render(
+      <ParticipantTile
+        displayName="Ismael"
+        stream={streamWithVideo()}
+        state="connected"
+        isLocal
+        micOn={false}
+      />,
+    );
+
+    expect(screen.getByText('Mic off')).toBeInTheDocument();
   });
 
   it('shows no status word once a peer has video', () => {

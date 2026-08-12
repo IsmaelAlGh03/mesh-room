@@ -67,6 +67,11 @@ body {
   outline-offset: 2px;
 }
 
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

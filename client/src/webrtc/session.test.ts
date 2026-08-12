@@ -50,7 +50,11 @@ function createStubConnection() {
   };
 }
 
-const emptyStream = { getTracks: () => [] } as unknown as MediaStream;
+const emptyStream = {
+  getTracks: () => [],
+  getVideoTracks: () => [],
+  getAudioTracks: () => [],
+} as unknown as MediaStream;
 
 describe('createMeshSession', () => {
   it('tears down only the departing peer', async () => {
