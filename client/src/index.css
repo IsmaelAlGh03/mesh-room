@@ -14,6 +14,21 @@
   --font-display: 'Syne', ui-sans-serif, system-ui, sans-serif;
   --font-sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Space Mono', ui-monospace, monospace;
+
+  --spacing-gutter: 1.5rem;
+}
+
+@keyframes mesh-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.mesh-fade {
+  animation: mesh-fade-in 150ms ease-out;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -28,6 +43,10 @@
   --color-substrate: #141719;
   --color-ink: #e6e4df;
   --color-alert: #ef7a45;
+}
+
+html {
+  color-scheme: light dark;
 }
 
 html,

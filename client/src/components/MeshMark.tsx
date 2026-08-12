@@ -9,7 +9,7 @@ const NODES = [
 
 const LINKS = NODES.flatMap((from, i) => NODES.slice(i + 1).map((to) => ({ from, to })));
 
-export default function MeshMark() {
+export function MeshMark(): JSX.Element {
   return (
     <svg
       viewBox="0 0 220 214"

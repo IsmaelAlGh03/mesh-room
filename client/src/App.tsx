@@ -1,8 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import LobbyPage from './pages/LobbyPage';
-import RoomPage from './pages/RoomPage';
+import { LobbyPage } from './pages/LobbyPage';
+import { RoomPage } from './pages/RoomPage';
 
-export default function App() {
+export function App(): JSX.Element {
   return (
     <Routes>
       <Route path="/" element={<LobbyPage />} />

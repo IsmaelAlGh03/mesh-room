@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import MeshMark from '../components/MeshMark';
+import { MeshMark } from '../components/MeshMark';
 import { createRoomId, parseRoomId } from '../lib/room-id';
 
 const BAD_LINK = 'That is not a room link. Paste the whole link, or the room name on its own.';
 
-export default function LobbyPage() {
+export function LobbyPage(): JSX.Element {
   const navigate = useNavigate();
   const [link, setLink] = useState('');
   const [error, setError] = useState<string | null>(null);
