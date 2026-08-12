@@ -1,10 +1,13 @@
+import { Navigate, Route, Routes } from 'react-router-dom';
+import LobbyPage from './pages/LobbyPage';
+import RoomPage from './pages/RoomPage';
+
 export default function App() {
   return (
-    <main className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-      <h1 className="text-3xl font-semibold tracking-tight">mesh-room</h1>
-      <p className="max-w-sm text-sm text-white/60">
-        Peer-to-peer video rooms for up to 6 people. Scaffold only — no room logic yet.
-      </p>
-    </main>
+    <Routes>
+      <Route path="/" element={<LobbyPage />} />
+      <Route path="/room/:roomId" element={<RoomPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }

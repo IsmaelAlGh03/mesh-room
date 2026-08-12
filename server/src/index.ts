@@ -2,6 +2,7 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import { Server as IOServer } from 'socket.io';
 import { createApp } from './app';
 import { env } from './env';
+import { registerSignaling } from './socket';
 
 export interface RunningServer {
   http: HttpServer;
@@ -15,6 +16,8 @@ export async function startServer(port: number = env.port): Promise<RunningServe
   const io = new IOServer(http, {
     cors: { origin: env.clientOrigins },
   });
+
+  registerSignaling(io);
 
   await new Promise<void>((resolve) => http.listen(port, resolve));
 

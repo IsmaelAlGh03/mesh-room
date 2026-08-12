@@ -1,9 +1,33 @@
 @import "tailwindcss";
+@import "@fontsource/syne/800.css";
+@import "@fontsource/space-grotesk/400.css";
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/700.css";
+@import "@fontsource/space-mono/400.css";
+@import "@fontsource/space-mono/700.css";
 
 @theme {
-  --color-surface: oklch(0.18 0.01 260);
-  --color-surface-raised: oklch(0.24 0.012 260);
-  --color-accent: oklch(0.72 0.15 200);
+  --color-substrate: #e4eaee;
+  --color-ink: #0f2230;
+  --color-alert: #c2410c;
+
+  --font-display: 'Syne', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-substrate: #141719;
+    --color-ink: #e6e4df;
+    --color-alert: #ef7a45;
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-substrate: #141719;
+  --color-ink: #e6e4df;
+  --color-alert: #ef7a45;
 }
 
 html,
@@ -13,7 +37,22 @@ body,
 }
 
 body {
-  background-color: var(--color-surface);
-  color: oklch(0.96 0.005 260);
+  background-color: var(--color-substrate);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

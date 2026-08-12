@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
 
@@ -8,4 +9,8 @@ if (!container) {
 }
 
 // No StrictMode: double-invoked effects create duplicate peer connections.
-createRoot(container).render(<App />);
+createRoot(container).render(
+  <BrowserRouter>
+    <App />
+  </BrowserRouter>,
+);
