@@ -2,6 +2,13 @@ import type { Socket } from 'socket.io-client';
 import { getSocket } from '../socket';
 import { iceServers } from './ice';
 import { createPeerLink, isPolite, type PeerLink } from './peers';
+import {
+  deriveLink,
+  readSample,
+  settleBucket,
+  type LinkQuality,
+  type QualitySample,
+} from './quality';
 import type {
   Participant,
   PeerParticipant,
@@ -27,11 +34,17 @@ export interface MeshSession {
 
 type SocketListener = (...args: any[]) => void;
 
+const POLL_INTERVAL_MS = 2000;
+
 interface PeerEntry {
   participant: Participant;
   link: PeerLink;
+  connection: RTCPeerConnection;
   stream: MediaStream | null;
   connectionState: RTCPeerConnectionState;
+  quality: LinkQuality | null;
+  sample: QualitySample | null;
+  streak: number;
 }
 
 function describeMediaError(error: unknown): string {
@@ -63,6 +76,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
   const bindings: [string, SocketListener][] = [];
 
   let socket: Socket | null = null;
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
   let status: SessionStatus = 'idle';
   let localStream: MediaStream | null = null;
   let mediaError: string | null = null;
@@ -78,6 +92,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
       ...entry.participant,
       stream: entry.stream,
       connectionState: entry.connectionState,
+      quality: entry.quality,
     }));
 
     state = { status, localStream, participants, mediaError };
@@ -96,8 +111,12 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     const connection = createConnection();
     const entry: PeerEntry = {
       participant,
+      connection,
       stream: null,
       connectionState: 'new',
+      quality: null,
+      sample: null,
+      streak: 0,
       link: createPeerLink({
         connection,
         polite: isPolite(socket?.id ?? '', participant.socketId),
@@ -115,6 +134,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     };
 
     peers.set(participant.socketId, entry);
+    startPolling();
 
     if (localStream !== null) {
       for (const track of localStream.getTracks()) connection.addTrack(track, localStream);
@@ -132,7 +152,48 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
 
     entry.link.close();
     peers.delete(socketId);
+    if (peers.size === 0) stopPolling();
     publish();
+  }
+
+  async function measure(entry: PeerEntry): Promise<boolean> {
+    let report: RTCStatsReport;
+    try {
+      report = await entry.connection.getStats();
+    } catch {
+      return false;
+    }
+
+    const sample = readSample(report, Date.now());
+    if (sample === null) return false;
+
+    const measured = deriveLink(entry.sample, sample);
+    const settled = settleBucket(
+      entry.quality?.bucket ?? measured.bucket,
+      measured.bucket,
+      entry.streak,
+    );
+
+    entry.sample = sample;
+    entry.streak = settled.streak;
+    entry.quality = { ...measured, bucket: settled.bucket };
+    return true;
+  }
+
+  async function pollQuality(): Promise<void> {
+    const measured = await Promise.all([...peers.values()].map(measure));
+    if (measured.some(Boolean)) publish();
+  }
+
+  function startPolling(): void {
+    if (pollTimer !== null) return;
+    pollTimer = setInterval(() => void pollQuality(), POLL_INTERVAL_MS);
+  }
+
+  function stopPolling(): void {
+    if (pollTimer === null) return;
+    clearInterval(pollTimer);
+    pollTimer = null;
   }
 
   async function join(): Promise<void> {
@@ -177,6 +238,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
   }
 
   function leave(): void {
+    stopPolling();
     for (const socketId of [...peers.keys()]) removePeer(socketId);
 
     localStream?.getTracks().forEach((track) => track.stop());

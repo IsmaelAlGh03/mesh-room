@@ -1,4 +1,5 @@
 import { ParticipantTile, type TileState } from './ParticipantTile';
+import { formatFields, healthFor } from '../webrtc/quality';
 import type { PeerParticipant } from '../types';
 
 interface VideoGridProps {
@@ -36,6 +37,10 @@ export function VideoGrid({ localStream, participants }: VideoGridProps): JSX.El
           displayName={peer.displayName}
           stream={peer.stream}
           state={tileState(peer.connectionState)}
+          relayed={peer.quality?.relayed ?? false}
+          degraded={peer.quality?.bucket === 'poor'}
+          fields={peer.quality === null ? undefined : formatFields(peer.quality)}
+          health={peer.quality === null ? null : healthFor(peer.quality.bucket)}
         />
       ))}
     </div>

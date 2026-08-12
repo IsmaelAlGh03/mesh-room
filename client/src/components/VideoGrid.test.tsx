@@ -9,6 +9,7 @@ function peers(count: number): PeerParticipant[] {
     displayName: `Peer ${index}`,
     stream: null,
     connectionState: 'connected' as RTCPeerConnectionState,
+    quality: null,
   }));
 }
 

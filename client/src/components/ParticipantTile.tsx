@@ -9,6 +9,7 @@ interface ParticipantTileProps {
   state: TileState;
   isLocal?: boolean;
   relayed?: boolean;
+  degraded?: boolean;
   fields?: string[];
   health?: number | null;
 }
@@ -32,6 +33,7 @@ export function ParticipantTile({
   state,
   isLocal = false,
   relayed = false,
+  degraded: isDegraded = false,
   fields,
   health = null,
 }: ParticipantTileProps): JSX.Element {
@@ -54,7 +56,7 @@ export function ParticipantTile({
     : ['Local', 'audio only'];
 
   const readout = isLocal ? localFields : (fields ?? [REMOTE_STATUS[state] ?? 'Connected']);
-  const degraded = relayed || state === 'reconnecting';
+  const degraded = relayed || isDegraded || state === 'reconnecting';
 
   return (
     <figure className="m-0 flex flex-col">

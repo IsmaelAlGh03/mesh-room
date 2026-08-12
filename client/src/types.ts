@@ -1,3 +1,5 @@
+import type { LinkQuality } from './webrtc/quality';
+
 export interface Participant {
   socketId: string;
   displayName: string;
@@ -6,6 +8,7 @@ export interface Participant {
 export interface PeerParticipant extends Participant {
   stream: MediaStream | null;
   connectionState: RTCPeerConnectionState;
+  quality: LinkQuality | null;
 }
 
 export type SessionStatus = 'idle' | 'connecting' | 'connected' | 'room-full';
