@@ -189,3 +189,99 @@ describe('signaling', () => {
     expect(peers).toEqual([{ socketId: first.id, displayName: 'Guest' }]);
   });
 });
+
+interface RoomCount {
+  count: number;
+  capacity: number;
+}
+
+async function watch(client: Socket, roomId: string): Promise<RoomCount> {
+  const count = once<RoomCount>(client, 'room-count');
+  client.emit('watch-room', { roomId });
+  return count;
+}
+
+describe('watching a room without joining it', () => {
+  it('answers with the current count and the capacity', async () => {
+    const resident = await connect();
+    await join(resident, 'alpha', 'Ada');
+
+    const watcher = await connect();
+
+    expect(await watch(watcher, 'alpha')).toEqual({ count: 1, capacity: MAX_ROOM_SIZE });
+  });
+
+  it('reports an empty room as zero rather than staying silent', async () => {
+    const watcher = await connect();
+
+    expect(await watch(watcher, 'empty')).toEqual({ count: 0, capacity: MAX_ROOM_SIZE });
+  });
+
+  it('does not put the watcher in the room', async () => {
+    const watcher = await connect();
+    await watch(watcher, 'alpha');
+
+    const joiner = await connect();
+
+    expect(await join(joiner, 'alpha', 'Bo')).toEqual([]);
+  });
+
+  it('republishes the count when someone joins', async () => {
+    const watcher = await connect();
+    await watch(watcher, 'alpha');
+
+    const next = once<RoomCount>(watcher, 'room-count');
+    const joiner = await connect();
+    await join(joiner, 'alpha', 'Ada');
+
+    expect(await next).toEqual({ count: 1, capacity: MAX_ROOM_SIZE });
+  });
+
+  it('republishes the count when someone leaves', async () => {
+    const resident = await connect();
+    await join(resident, 'alpha', 'Ada');
+
+    const watcher = await connect();
+    await watch(watcher, 'alpha');
+
+    const next = once<RoomCount>(watcher, 'room-count');
+    resident.disconnect();
+
+    expect(await next).toEqual({ count: 0, capacity: MAX_ROOM_SIZE });
+  });
+
+  it('stops updating a watcher that has joined the room itself', async () => {
+    const watcher = await connect();
+    await watch(watcher, 'alpha');
+    await join(watcher, 'alpha', 'Ada');
+
+    const joiner = await connect();
+    const quiet = silence(watcher, 'room-count');
+    await join(joiner, 'alpha', 'Bo');
+
+    await expect(quiet).resolves.toBeUndefined();
+  });
+
+  it('stops updating after unwatch-room', async () => {
+    const watcher = await connect();
+    await watch(watcher, 'alpha');
+    watcher.emit('unwatch-room', { roomId: 'alpha' });
+
+    const quiet = silence(watcher, 'room-count');
+    const joiner = await connect();
+    await join(joiner, 'alpha', 'Ada');
+
+    await expect(quiet).resolves.toBeUndefined();
+  });
+
+  it('keeps watchers of other rooms out of it', async () => {
+    const watcher = await connect();
+    await watch(watcher, 'alpha');
+
+    const quiet = silence(watcher, 'room-count');
+    const joiner = await connect();
+    await join(joiner, 'beta', 'Ada');
+
+    await expect(quiet).resolves.toBeUndefined();
+  });
+});

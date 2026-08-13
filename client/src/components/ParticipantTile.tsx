@@ -50,9 +50,10 @@ export function ParticipantTile({
   const settings = videoSettings(stream);
   const hasVideo = settings !== null && (!isLocal || cameraOn);
 
+  // hasVideo remounts the element, and the stream identity never changes, so it has to be a dep.
   useEffect(() => {
     if (video.current !== null) video.current.srcObject = stream;
-  }, [stream]);
+  }, [stream, hasVideo]);
 
   const statusWord = isLocal
     ? hasVideo

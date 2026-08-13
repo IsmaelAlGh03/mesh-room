@@ -25,11 +25,19 @@ export interface MeshSessionOptions {
   createConnection?: () => RTCPeerConnection;
 }
 
+export interface JoinDetails {
+  displayName?: string;
+  stream?: MediaStream;
+  micOn?: boolean;
+  cameraOn?: boolean;
+}
+
 export interface MeshSession {
   getState(): SessionState;
   subscribe(listener: () => void): () => void;
-  join(): Promise<void>;
+  join(details?: JoinDetails): Promise<void>;
   leave(): void;
+  reset(): void;
   toggleMic(): void;
   toggleCamera(): void;
 }
@@ -49,9 +57,16 @@ interface PeerEntry {
   streak: number;
 }
 
-function describeMediaError(error: unknown): string {
+export function describeMediaError(
+  error: unknown,
+  secureContext: boolean = window.isSecureContext,
+): string {
   const name = error instanceof DOMException ? error.name : '';
 
+  // Off a secure origin there is no navigator.mediaDevices at all, so no error name is meaningful.
+  if (!secureContext) {
+    return 'The camera and microphone need a secure connection. Open this page over HTTPS.';
+  }
   if (name === 'NotAllowedError') {
     return 'Your browser is blocking the camera and microphone. Allow them, then reload.';
   }
@@ -67,7 +82,7 @@ function describeMediaError(error: unknown): string {
 export function createMeshSession(options: MeshSessionOptions): MeshSession {
   const {
     roomId,
-    displayName = '',
+    displayName: initialName = '',
     getSocket: resolveSocket = getSocket,
     getMedia = () => navigator.mediaDevices.getUserMedia({ video: true, audio: true }),
     createConnection = () => new RTCPeerConnection({ iceServers: iceServers() }),
@@ -80,6 +95,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
   let socket: Socket | null = null;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let status: SessionStatus = 'idle';
+  let announcedName = initialName;
   let localStream: MediaStream | null = null;
   let mediaError: string | null = null;
   let connectedAt: number | null = null;
@@ -119,13 +135,18 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     for (const listener of listeners) listener();
   }
 
+  function setEnabled(kind: 'audio' | 'video', enabled: boolean): void {
+    const tracks =
+      kind === 'audio' ? (localStream?.getAudioTracks() ?? []) : (localStream?.getVideoTracks() ?? []);
+    for (const track of tracks) track.enabled = enabled;
+  }
+
   function toggle(kind: 'audio' | 'video'): void {
     const tracks =
       kind === 'audio' ? (localStream?.getAudioTracks() ?? []) : (localStream?.getVideoTracks() ?? []);
     if (tracks.length === 0) return;
 
-    const turningOn = !tracksEnabled(kind);
-    for (const track of tracks) track.enabled = turningOn;
+    setEnabled(kind, !tracksEnabled(kind));
     publish();
   }
 
@@ -226,20 +247,33 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     pollTimer = null;
   }
 
-  async function join(): Promise<void> {
+  async function join(details: JoinDetails = {}): Promise<void> {
     status = 'connecting';
+    if (details.displayName !== undefined) announcedName = details.displayName;
     publish();
 
-    try {
-      localStream = await getMedia();
-    } catch (error) {
-      mediaError = describeMediaError(error);
+    if (details.stream !== undefined) {
+      localStream = details.stream;
+      mediaError = null;
+    } else {
+      try {
+        localStream = await getMedia();
+      } catch (error) {
+        mediaError = describeMediaError(error);
+      }
     }
+
+    if (details.micOn !== undefined) setEnabled('audio', details.micOn);
+    if (details.cameraOn !== undefined) setEnabled('video', details.cameraOn);
     publish();
 
     socket = resolveSocket();
 
-    bind('connect', () => socket?.emit('join-room', { roomId, displayName }));
+    const announce = (): void => {
+      socket?.emit('join-room', { roomId, displayName: announcedName });
+    };
+
+    bind('connect', announce);
 
     bind('existing-peers', (existing: Participant[]) => {
       status = 'connected';
@@ -261,7 +295,9 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
       publish();
     });
 
-    socket.connect();
+    // PreJoin connects this socket to watch the count, so 'connect' may never fire again.
+    if (socket.connected) announce();
+    else socket.connect();
   }
 
   function reportSignalFailure(error: unknown): void {
@@ -285,6 +321,12 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     publish();
   }
 
+  function reset(): void {
+    status = 'idle';
+    mediaError = null;
+    publish();
+  }
+
   return {
     getState: () => state,
     subscribe(listener) {
@@ -293,6 +335,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     },
     join,
     leave,
+    reset,
     toggleMic: () => toggle('audio'),
     toggleCamera: () => toggle('video'),
   };

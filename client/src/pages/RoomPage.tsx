@@ -1,11 +1,13 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { ControlBar } from '../components/ControlBar';
+import { PreJoin } from '../components/PreJoin';
 import { VideoGrid } from '../components/VideoGrid';
+import { useRoomCount } from '../webrtc/useRoomCount';
 import { useWebRTC } from '../webrtc/useWebRTC';
 import type { SessionStatus } from '../types';
 
 const STATUS_LABEL: Record<SessionStatus, string> = {
-  idle: 'Not connected',
+  idle: 'Not in the room yet',
   connecting: 'Connecting…',
   connected: 'In the room',
   'room-full': 'Room is full',
@@ -17,8 +19,10 @@ export function RoomPage(): JSX.Element {
   const navigate = useNavigate();
   const room = useWebRTC(roomId ?? '');
   const { status, localStream, participants, mediaError } = room;
+  const occupancy = useRoomCount(roomId ?? '', status === 'idle');
 
-  const showsCount = status !== 'room-full' && status !== 'left';
+  const inRoom = status === 'connecting' || status === 'connected';
+  const showsCount = inRoom;
 
   return (
     <main className="mx-auto flex min-h-full max-w-6xl flex-col px-6 py-8">
@@ -38,10 +42,19 @@ export function RoomPage(): JSX.Element {
         </p>
       </header>
 
-      {mediaError !== null && (
+      {mediaError !== null && inRoom && (
         <p role="alert" className="mt-6 font-mono text-[11px] text-alert">
           {mediaError}
         </p>
+      )}
+
+      {status === 'idle' && (
+        <PreJoin
+          roomId={roomId ?? ''}
+          count={occupancy.count}
+          capacity={occupancy.capacity}
+          onJoin={room.join}
+        />
       )}
 
       {status === 'room-full' && (
@@ -59,7 +72,7 @@ export function RoomPage(): JSX.Element {
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={room.rejoin}
+              onClick={room.reset}
               className="bg-ink px-6 py-3 text-sm font-bold text-substrate transition-colors duration-150 hover:bg-ink/90"
             >
               Rejoin

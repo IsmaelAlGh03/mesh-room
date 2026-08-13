@@ -61,6 +61,28 @@ describe('ParticipantTile', () => {
     expect(container.querySelector('video')).toBeNull();
   });
 
+  it('reattaches the stream when you turn your camera back on', () => {
+    const stream = streamWithVideo();
+    const tile = (cameraOn: boolean): JSX.Element => (
+      <ParticipantTile
+        displayName="Ismael"
+        stream={stream}
+        state="connected"
+        isLocal
+        cameraOn={cameraOn}
+      />
+    );
+
+    const { container, rerender } = render(tile(true));
+    expect(container.querySelector('video')?.srcObject).toBe(stream);
+
+    rerender(tile(false));
+    expect(container.querySelector('video')).toBeNull();
+
+    rerender(tile(true));
+    expect(container.querySelector('video')?.srcObject).toBe(stream);
+  });
+
   it('distinguishes a camera you turned off from one you never had', () => {
     render(
       <ParticipantTile

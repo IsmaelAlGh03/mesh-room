@@ -1,34 +1,33 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { createMeshSession, type MeshSession } from './session';
+import { createMeshSession, type JoinDetails, type MeshSession } from './session';
 import type { SessionState } from '../types';
 
 export interface RoomControls extends SessionState {
-  rejoin: () => void;
+  join: (details: JoinDetails) => void;
   leave: () => void;
+  reset: () => void;
   toggleMic: () => void;
   toggleCamera: () => void;
 }
 
-export function useWebRTC(roomId: string, displayName = ''): RoomControls {
+export function useWebRTC(roomId: string): RoomControls {
   const held = useRef<{ roomId: string; session: MeshSession } | null>(null);
 
   if (held.current === null || held.current.roomId !== roomId) {
-    held.current = { roomId, session: createMeshSession({ roomId, displayName }) };
+    held.current = { roomId, session: createMeshSession({ roomId }) };
   }
 
   const { session } = held.current;
 
-  useEffect(() => {
-    void session.join();
-    return () => session.leave();
-  }, [session]);
+  useEffect(() => () => session.leave(), [session]);
 
   const state = useSyncExternalStore(session.subscribe, session.getState);
 
   return {
     ...state,
-    rejoin: () => void session.join(),
+    join: (details: JoinDetails) => void session.join(details),
     leave: session.leave,
+    reset: session.reset,
     toggleMic: session.toggleMic,
     toggleCamera: session.toggleCamera,
   };
