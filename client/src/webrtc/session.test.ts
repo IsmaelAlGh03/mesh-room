@@ -38,14 +38,41 @@ function createFakeSocket() {
   return socket;
 }
 
+function createStubDataChannel() {
+  const listeners = new Map<string, Set<Listener>>();
+
+  const channel = {
+    readyState: 'connecting' as RTCDataChannelState,
+    send: vi.fn(),
+    close: vi.fn(),
+    addEventListener(event: string, handler: Listener) {
+      const existing = listeners.get(event) ?? new Set<Listener>();
+      existing.add(handler);
+      listeners.set(event, existing);
+    },
+    open() {
+      channel.readyState = 'open';
+      for (const handler of listeners.get('open') ?? []) {
+        (handler as (value: unknown) => void)({});
+      }
+    },
+  };
+
+  return channel;
+}
+
 function createStubConnection() {
+  const channel = createStubDataChannel();
+
   return {
     connectionState: 'new',
     signalingState: 'stable',
     localDescription: null,
+    channel,
     addTrack: vi.fn(),
     addTransceiver: vi.fn(),
     addEventListener: vi.fn(),
+    createDataChannel: vi.fn(() => channel),
     setLocalDescription: vi.fn(),
     setRemoteDescription: vi.fn(),
     addIceCandidate: vi.fn(),
@@ -207,5 +234,45 @@ describe('createMeshSession', () => {
       'peer-1',
       'peer-3',
     ]);
+  });
+
+  it('holds chat until every peer channel opens, and echoes it locally at once', async () => {
+    const socket = createFakeSocket();
+    const connections: ReturnType<typeof createStubConnection>[] = [];
+
+    const session = createMeshSession({
+      roomId: 'test-room',
+      getSocket: () => socket as unknown as Socket,
+      getMedia: async () => emptyStream,
+      createConnection: () => {
+        const connection = createStubConnection();
+        connections.push(connection);
+        return connection as unknown as RTCPeerConnection;
+      },
+    });
+
+    await session.join({ displayName: 'Ada' });
+    socket.fire('existing-peers', [
+      { socketId: 'peer-1', displayName: 'One' },
+      { socketId: 'peer-2', displayName: 'Two' },
+    ]);
+
+    session.sendChat('before the channels are up');
+
+    const [first, second] = connections;
+    expect(first?.channel.send).not.toHaveBeenCalled();
+    expect(second?.channel.send).not.toHaveBeenCalled();
+
+    const echoed = session.getState().messages;
+    expect(echoed).toHaveLength(1);
+    expect(echoed[0]?.text).toBe('before the channels are up');
+    expect(echoed[0]?.mine).toBe(true);
+    expect(echoed[0]?.authorName).toBe('Ada');
+
+    first?.channel.open();
+
+    const queued = first?.channel.send.mock.calls[0]?.[0] as string;
+    expect(JSON.parse(queued)).toMatchObject({ type: 'chat', text: 'before the channels are up' });
+    expect(second?.channel.send).not.toHaveBeenCalled();
   });
 });

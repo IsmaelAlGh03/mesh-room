@@ -10,6 +10,8 @@ function peers(count: number): PeerParticipant[] {
     stream: null,
     connectionState: 'connected' as RTCPeerConnectionState,
     quality: null,
+    micOn: true,
+    cameraOn: true,
   }));
 }
 
@@ -39,5 +41,24 @@ describe('VideoGrid', () => {
     expect(names[0]).toContain('You');
     expect(names[1]).toContain('Peer 0');
     expect(names[2]).toContain('Peer 1');
+  });
+
+  it('hands each tile the mic and camera state that peer announced', () => {
+    const sending = {
+      getVideoTracks: () => [{ kind: 'video', getSettings: () => ({ width: 640, height: 480 }) }],
+      getAudioTracks: () => [{ kind: 'audio', enabled: true }],
+    } as unknown as MediaStream;
+
+    const [first, second] = peers(2);
+    const participants = [
+      { ...first, stream: sending, micOn: false, cameraOn: false },
+      { ...second, stream: sending },
+    ] as PeerParticipant[];
+
+    const { container } = render(<VideoGrid localStream={null} participants={participants} />);
+
+    // The peer still transmitting keeps its video; the one who announced off must not.
+    expect(container.querySelectorAll('video')).toHaveLength(1);
+    expect(screen.getByText('Mic off')).toBeInTheDocument();
   });
 });

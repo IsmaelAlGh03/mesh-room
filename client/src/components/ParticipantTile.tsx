@@ -48,7 +48,10 @@ export function ParticipantTile({
 }: ParticipantTileProps): JSX.Element {
   const video = useRef<HTMLVideoElement>(null);
   const settings = videoSettings(stream);
-  const hasVideo = settings !== null && (!isLocal || cameraOn);
+  const hasVideo = settings !== null && cameraOn;
+
+  // A peer transmits black frames rather than stopping, so only their announcement tells us.
+  const announcedOff = !isLocal && state === 'connected' && !cameraOn;
 
   // hasVideo remounts the element, and the stream identity never changes, so it has to be a dep.
   useEffect(() => {
@@ -69,7 +72,10 @@ export function ParticipantTile({
 
   if (isLocal && !micOn) localFields.push('Mic off');
 
-  const readout = isLocal ? localFields : (fields ?? [REMOTE_STATUS[state] ?? 'Connected']);
+  const remoteFields = fields ?? [REMOTE_STATUS[state] ?? 'Connected'];
+  if (!isLocal && !micOn && state === 'connected') remoteFields.push('Mic off');
+
+  const readout = isLocal ? localFields : remoteFields;
   const degraded = relayed || isDegraded || state === 'reconnecting';
 
   return (
@@ -86,6 +92,13 @@ export function ParticipantTile({
             muted={isLocal}
             className={`mesh-fade h-full w-full object-cover ${isLocal ? '-scale-x-100' : ''}`}
           />
+        ) : announcedOff ? (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-4">
+            <MeshNode className="h-3 w-3 opacity-55" />
+            <span className="max-w-full truncate text-[1.5rem] font-medium tracking-[-0.02em]">
+              {displayName}
+            </span>
+          </div>
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2">
             <MeshNode ringed={isLocal} className="h-4 w-4" />

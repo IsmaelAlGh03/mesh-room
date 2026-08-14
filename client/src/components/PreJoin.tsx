@@ -58,7 +58,9 @@ export function PreJoin({ roomId, count, capacity, onJoin }: PreJoinProps): JSX.
         if (!cancelled) setMediaError(describeMediaError(error));
       }
 
-      const found = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+      const devices: MediaDevices | undefined = navigator.mediaDevices;
+      const found =
+        devices === undefined ? [] : await devices.enumerateDevices().catch(() => []);
       if (cancelled) return;
       setCameras(found.filter((device) => device.kind === 'videoinput'));
       setMicrophones(found.filter((device) => device.kind === 'audioinput'));

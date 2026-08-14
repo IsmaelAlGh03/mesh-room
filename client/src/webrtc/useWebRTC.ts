@@ -8,6 +8,8 @@ export interface RoomControls extends SessionState {
   reset: () => void;
   toggleMic: () => void;
   toggleCamera: () => void;
+  sendChat: (text: string) => void;
+  sendAttachment: (file: File) => void;
 }
 
 export function useWebRTC(roomId: string): RoomControls {
@@ -30,5 +32,7 @@ export function useWebRTC(roomId: string): RoomControls {
     reset: session.reset,
     toggleMic: session.toggleMic,
     toggleCamera: session.toggleCamera,
+    sendChat: session.sendChat,
+    sendAttachment: (file: File) => void session.sendAttachment(file),
   };
 }

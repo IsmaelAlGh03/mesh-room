@@ -1,5 +1,16 @@
 import type { Socket } from 'socket.io-client';
 import { getSocket } from '../socket';
+import {
+  CHUNK_BYTES,
+  createReassembler,
+  decodeChunk,
+  encodeChunk,
+  isAllowedImage,
+  planChunks,
+  rejectAttachment,
+  type Reassembler,
+} from './chunker';
+import { createChannelLink, type ChannelLink } from './datachannel';
 import { iceServers } from './ice';
 import { createPeerLink, isPolite, type PeerLink } from './peers';
 import {
@@ -10,8 +21,11 @@ import {
   type QualitySample,
 } from './quality';
 import type {
+  ChatMessage,
+  MeshMessage,
   Participant,
   PeerParticipant,
+  PeerStat,
   SessionState,
   SessionStatus,
   SignalMessage,
@@ -40,6 +54,8 @@ export interface MeshSession {
   reset(): void;
   toggleMic(): void;
   toggleCamera(): void;
+  sendChat(text: string): void;
+  sendAttachment(file: File): Promise<void>;
 }
 
 type SocketListener = (...args: any[]) => void;
@@ -49,12 +65,16 @@ const POLL_INTERVAL_MS = 2000;
 interface PeerEntry {
   participant: Participant;
   link: PeerLink;
+  channel: ChannelLink;
+  inbound: Reassembler;
   connection: RTCPeerConnection;
   stream: MediaStream | null;
   connectionState: RTCPeerConnectionState;
   quality: LinkQuality | null;
   sample: QualitySample | null;
   streak: number;
+  micOn: boolean;
+  cameraOn: boolean;
 }
 
 export function describeMediaError(
@@ -99,10 +119,18 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
   let localStream: MediaStream | null = null;
   let mediaError: string | null = null;
   let connectedAt: number | null = null;
+  let messages: ChatMessage[] = [];
+  let remoteStats: Record<string, PeerStat[]> = {};
+  let attachmentError: string | null = null;
+  let sentCount = 0;
+  const objectUrls: string[] = [];
   let state: SessionState = {
     status,
     localStream: null,
     participants: [],
+    messages: [],
+    remoteStats: {},
+    attachmentError: null,
     mediaError: null,
     micOn: false,
     cameraOn: false,
@@ -121,18 +149,159 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
       stream: entry.stream,
       connectionState: entry.connectionState,
       quality: entry.quality,
+      micOn: entry.micOn,
+      cameraOn: entry.cameraOn,
     }));
 
     state = {
       status,
       localStream,
       participants,
+      messages,
+      remoteStats,
+      attachmentError,
       mediaError,
       micOn: tracksEnabled('audio'),
       cameraOn: tracksEnabled('video'),
       connectedAt,
     };
     for (const listener of listeners) listener();
+  }
+
+  function broadcast(message: MeshMessage): void {
+    for (const entry of peers.values()) entry.channel.send(message);
+  }
+
+  function presence(): MeshMessage {
+    return { type: 'presence', micOn: tracksEnabled('audio'), cameraOn: tracksEnabled('video') };
+  }
+
+  function ownStats(): MeshMessage {
+    const links: PeerStat[] = [];
+
+    for (const [peerId, entry] of peers) {
+      if (entry.quality === null) continue;
+      links.push({
+        peerId,
+        bucket: entry.quality.bucket,
+        rtt: entry.quality.rtt,
+        loss: entry.quality.loss,
+        relayed: entry.quality.relayed,
+      });
+    }
+
+    return { type: 'stats', at: Date.now(), links };
+  }
+
+  function receive(from: Participant, message: MeshMessage): void {
+    const entry = peers.get(from.socketId);
+    if (entry === undefined) return;
+
+    if (message.type === 'chat') {
+      messages = [
+        ...messages,
+        {
+          id: message.id,
+          authorId: from.socketId,
+          authorName: entry.participant.displayName,
+          text: message.text,
+          at: message.at,
+          mine: false,
+        },
+      ];
+    } else if (message.type === 'presence') {
+      entry.micOn = message.micOn;
+      entry.cameraOn = message.cameraOn;
+    } else if (message.type === 'stats') {
+      remoteStats = { ...remoteStats, [from.socketId]: message.links };
+    } else if (message.type === 'file-meta') {
+      entry.inbound.begin(message);
+      return;
+    } else if (message.type === 'file-chunk') {
+      const piece = decodeChunk(message.data);
+      if (piece !== null) entry.inbound.accept(message.id, message.index, piece);
+      return;
+    } else {
+      const done = entry.inbound.end(message.id);
+      if (done === null) return;
+
+      const mime = isAllowedImage(done.mime) ? done.mime : 'application/octet-stream';
+      const url = URL.createObjectURL(new Blob([done.bytes], { type: mime }));
+      objectUrls.push(url);
+      messages = [
+        ...messages,
+        {
+          id: message.id,
+          authorId: from.socketId,
+          authorName: entry.participant.displayName,
+          text: '',
+          at: Date.now(),
+          mine: false,
+          attachment: { name: done.name, mime: done.mime, url, size: done.bytes.length },
+        },
+      ];
+    }
+
+    publish();
+  }
+
+  async function sendAttachment(file: File): Promise<void> {
+    const refusal = rejectAttachment({ type: file.type, size: file.size });
+    if (refusal !== null) {
+      attachmentError = refusal;
+      publish();
+      return;
+    }
+
+    attachmentError = null;
+    const id = `${socket?.id ?? 'local'}-f${(sentCount += 1)}`;
+    const at = Date.now();
+    const data = new Uint8Array(await file.arrayBuffer());
+    const pieces = planChunks(data, CHUNK_BYTES);
+
+    const url = URL.createObjectURL(new Blob([data], { type: file.type }));
+    objectUrls.push(url);
+    messages = [
+      ...messages,
+      {
+        id,
+        authorId: socket?.id ?? '',
+        authorName: announcedName,
+        text: '',
+        at,
+        mine: true,
+        attachment: { name: file.name, mime: file.type, url, size: file.size },
+      },
+    ];
+    publish();
+
+    const stream: MeshMessage[] = [
+      { type: 'file-meta', id, name: file.name, mime: file.type, size: file.size, chunks: pieces.length, at },
+      ...pieces.map((piece, index) => ({
+        type: 'file-chunk' as const,
+        id,
+        index,
+        data: encodeChunk(piece),
+      })),
+      { type: 'file-end', id },
+    ];
+
+    await Promise.all([...peers.values()].map((entry) => entry.channel.sendPaced(stream)));
+  }
+
+  function sendChat(text: string): void {
+    const trimmed = text.trim();
+    if (trimmed === '') return;
+
+    const id = `${socket?.id ?? 'local'}-${(sentCount += 1)}`;
+    const at = Date.now();
+
+    broadcast({ type: 'chat', id, text: trimmed, at });
+    messages = [
+      ...messages,
+      { id, authorId: socket?.id ?? '', authorName: announcedName, text: trimmed, at, mine: true },
+    ];
+    publish();
   }
 
   function setEnabled(kind: 'audio' | 'video', enabled: boolean): void {
@@ -147,6 +316,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     if (tracks.length === 0) return;
 
     setEnabled(kind, !tracksEnabled(kind));
+    broadcast(presence());
     publish();
   }
 
@@ -168,6 +338,18 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
       quality: null,
       sample: null,
       streak: 0,
+      micOn: true,
+      cameraOn: true,
+      inbound: createReassembler(),
+      channel: createChannelLink({
+        connection,
+        initiator,
+        onMessage: (message) => receive(participant, message),
+        onOpen: () => {
+          entry.channel.send(presence());
+          entry.channel.send(ownStats());
+        },
+      }),
       link: createPeerLink({
         connection,
         polite: isPolite(socket?.id ?? '', participant.socketId),
@@ -201,8 +383,10 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     const entry = peers.get(socketId);
     if (entry === undefined) return;
 
+    entry.channel.close();
     entry.link.close();
     peers.delete(socketId);
+    delete remoteStats[socketId];
     if (peers.size === 0) stopPolling();
     publish();
   }
@@ -233,7 +417,10 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
 
   async function pollQuality(): Promise<void> {
     const measured = await Promise.all([...peers.values()].map(measure));
-    if (measured.some(Boolean)) publish();
+    if (!measured.some(Boolean)) return;
+
+    broadcast(ownStats());
+    publish();
   }
 
   function startPolling(): void {
@@ -318,6 +505,12 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     socket = null;
     status = 'left';
     connectedAt = null;
+    messages = [];
+    remoteStats = {};
+    attachmentError = null;
+
+    for (const url of objectUrls) URL.revokeObjectURL(url);
+    objectUrls.length = 0;
     publish();
   }
 
@@ -338,5 +531,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     reset,
     toggleMic: () => toggle('audio'),
     toggleCamera: () => toggle('video'),
+    sendChat,
+    sendAttachment,
   };
 }

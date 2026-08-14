@@ -37,6 +37,22 @@ export function DeviceIcon({ device, on, className = BASE }: DeviceIconProps): J
   );
 }
 
+export function AttachIcon({ className = BASE }: IconProps): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="square"
+    >
+      <path d="M17.9 9.2l-7.7 7.7a5 5 0 0 1-7.1-7.1l7.7-7.7a3.3 3.3 0 0 1 4.7 4.7l-7.7 7.7a1.7 1.7 0 0 1-2.4-2.4l7.1-7.1" />
+    </svg>
+  );
+}
+
 export function LeaveIcon({ className = BASE }: IconProps): JSX.Element {
   return (
     <svg

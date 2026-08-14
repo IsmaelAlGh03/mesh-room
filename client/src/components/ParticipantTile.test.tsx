@@ -110,6 +110,35 @@ describe('ParticipantTile', () => {
     expect(screen.getByText('Mic off')).toBeInTheDocument();
   });
 
+  it('leads with the name when a peer announces their camera off, rather than a black frame', () => {
+    const { container } = render(
+      <ParticipantTile
+        displayName="Yusuf"
+        stream={streamWithVideo()}
+        state="connected"
+        cameraOn={false}
+      />,
+    );
+
+    expect(container.querySelector('video')).toBeNull();
+    expect(screen.getAllByText('Yusuf').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Camera off')).not.toBeInTheDocument();
+    expect(container.querySelector('.border-alert')).toBeNull();
+  });
+
+  it('carries a muted peer on their readout', () => {
+    render(
+      <ParticipantTile
+        displayName="Yusuf"
+        stream={streamWithVideo()}
+        state="connected"
+        micOn={false}
+      />,
+    );
+
+    expect(screen.getByText('Mic off')).toBeInTheDocument();
+  });
+
   it('shows no status word once a peer has video', () => {
     render(<ParticipantTile displayName="Sam" stream={streamWithVideo()} state="connected" />);
 

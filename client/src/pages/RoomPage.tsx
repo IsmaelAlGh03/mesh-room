@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
+import { ChatPanel } from '../components/ChatPanel';
 import { ControlBar } from '../components/ControlBar';
 import { PreJoin } from '../components/PreJoin';
 import { VideoGrid } from '../components/VideoGrid';
@@ -25,7 +26,7 @@ export function RoomPage(): JSX.Element {
   const showsCount = inRoom;
 
   return (
-    <main className="mx-auto flex min-h-full max-w-6xl flex-col px-6 py-8">
+    <main className="mx-auto flex h-full max-w-6xl flex-col px-6 py-8">
       <header className="flex flex-col gap-1 border-b-[1.5px] border-ink pb-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
         <h1 className="min-w-0 truncate font-display text-xl font-extrabold tracking-tight">
           mesh-room <span className="font-sans font-normal opacity-55">/ </span>
@@ -90,7 +91,7 @@ export function RoomPage(): JSX.Element {
 
       {showsCount && (
         <>
-          <div className="flex flex-1 flex-col justify-center py-8">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto py-8">
             <VideoGrid
               localStream={localStream}
               participants={participants}
@@ -105,6 +106,12 @@ export function RoomPage(): JSX.Element {
             onToggleMic={room.toggleMic}
             onToggleCamera={room.toggleCamera}
             onLeave={room.leave}
+          />
+          <ChatPanel
+            messages={room.messages}
+            onSend={room.sendChat}
+            onAttach={room.sendAttachment}
+            attachmentError={room.attachmentError}
           />
         </>
       )}
