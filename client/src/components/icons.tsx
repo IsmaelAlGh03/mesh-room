@@ -53,6 +53,51 @@ export function AttachIcon({ className = BASE }: IconProps): JSX.Element {
   );
 }
 
+interface CopyIconProps extends IconProps {
+  copied: boolean;
+}
+
+export function CopyIcon({ copied, className = BASE }: CopyIconProps): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="square"
+    >
+      {copied ? (
+        <path d="M4 10.5l4 4 8-9" />
+      ) : (
+        <>
+          <rect x="7" y="2.5" width="10" height="12" />
+          <path d="M13 17.5H3v-12h2" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+export function ExportIcon({ className = BASE }: IconProps): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="square"
+    >
+      <path d="M10 2.5v9" />
+      <path d="M6.5 8.5l3.5 3 3.5-3" />
+      <path d="M3 13v4.5h14V13" />
+    </svg>
+  );
+}
+
 export function LeaveIcon({ className = BASE }: IconProps): JSX.Element {
   return (
     <svg

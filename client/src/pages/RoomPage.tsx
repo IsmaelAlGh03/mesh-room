@@ -1,8 +1,10 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChatPanel } from '../components/ChatPanel';
 import { ControlBar } from '../components/ControlBar';
+import { CopyLink } from '../components/CopyLink';
 import { PreJoin } from '../components/PreJoin';
 import { VideoGrid } from '../components/VideoGrid';
+import { saveTranscript } from '../lib/save-transcript';
 import { useRoomCount } from '../webrtc/useRoomCount';
 import { useWebRTC } from '../webrtc/useWebRTC';
 import type { SessionStatus } from '../types';
@@ -28,12 +30,15 @@ export function RoomPage(): JSX.Element {
   return (
     <main className="mx-auto flex h-full max-w-6xl flex-col px-6 py-8">
       <header className="flex flex-col gap-1 border-b-[1.5px] border-ink pb-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
-        <h1 className="min-w-0 truncate font-display text-xl font-extrabold tracking-tight">
-          mesh-room <span className="font-sans font-normal opacity-55">/ </span>
-          <span translate="no" className="font-sans font-normal opacity-55">
-            {roomId}
-          </span>
-        </h1>
+        <div className="flex min-w-0 items-center gap-x-2">
+          <h1 className="min-w-0 truncate font-display text-xl font-extrabold tracking-tight">
+            mesh-room <span className="font-sans font-normal opacity-55">/ </span>
+            <span translate="no" className="font-sans font-normal opacity-55">
+              {roomId}
+            </span>
+          </h1>
+          <CopyLink url={window.location.href} />
+        </div>
         <p
           aria-live="polite"
           className="shrink-0 font-mono text-[10px] tracking-[0.05em] whitespace-nowrap uppercase"
@@ -103,8 +108,10 @@ export function RoomPage(): JSX.Element {
             micOn={room.micOn}
             cameraOn={room.cameraOn}
             connectedAt={room.connectedAt}
+            exportable={room.messages.length > 0}
             onToggleMic={room.toggleMic}
             onToggleCamera={room.toggleCamera}
+            onExport={() => saveTranscript(room.messages, roomId ?? '')}
             onLeave={room.leave}
           />
           <ChatPanel

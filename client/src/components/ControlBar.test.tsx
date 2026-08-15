@@ -8,8 +8,10 @@ function renderBar(overrides: Partial<Parameters<typeof ControlBar>[0]> = {}) {
     micOn: true,
     cameraOn: true,
     connectedAt: null,
+    exportable: true,
     onToggleMic: vi.fn(),
     onToggleCamera: vi.fn(),
+    onExport: vi.fn(),
     onLeave: vi.fn(),
     ...overrides,
   };
@@ -56,6 +58,39 @@ describe('ControlBar', () => {
     expect(props.onToggleMic).toHaveBeenCalledOnce();
     expect(props.onToggleCamera).toHaveBeenCalledOnce();
     expect(props.onLeave).toHaveBeenCalledOnce();
+  });
+
+  it('offers no copy until there is something to copy', () => {
+    renderBar({ exportable: false });
+
+    expect(screen.getByRole('button', { name: 'Take a copy' })).toBeDisabled();
+  });
+
+  it('hands the copy to its handler, and says so while it works', async () => {
+    const user = userEvent.setup();
+    let finish = (): void => {};
+    const props = renderBar({
+      exportable: true,
+      onExport: vi.fn(() => new Promise<void>((resolve) => (finish = resolve))),
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Take a copy' }));
+
+    expect(props.onExport).toHaveBeenCalledOnce();
+    const working = screen.getByRole('button', { name: 'Taking a copy…' });
+    expect(working).toBeDisabled();
+
+    finish();
+    expect(await screen.findByRole('button', { name: 'Take a copy' })).toBeEnabled();
+  });
+
+  it('spells out what the copy is for', () => {
+    renderBar();
+
+    expect(screen.getByRole('button', { name: 'Take a copy' })).toHaveAttribute(
+      'title',
+      'Take a copy before you leave',
+    );
   });
 });
 
