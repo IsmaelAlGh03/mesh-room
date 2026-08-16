@@ -3,7 +3,7 @@ import { DeviceSelect } from './DeviceSelect';
 import { DeviceIcon } from './icons';
 import { ParticipantTile } from './ParticipantTile';
 import { RoomCount } from './RoomCount';
-import { describeMediaError } from '../webrtc/session';
+import { describeMediaError } from '../webrtc/media';
 import type { JoinDetails } from '../webrtc/session';
 
 interface PreJoinProps {

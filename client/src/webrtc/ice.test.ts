@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { iceServers } from './ice';
+import { hasTurn, iceServers } from './ice';
 
 const complete = {
   turnUrls: 'turn:relay.example.com:80',
@@ -63,5 +63,27 @@ describe('iceServers', () => {
 
   it('ignores urls that are only separators', () => {
     expect(iceServers({ ...complete, turnUrls: ' , ' })).toHaveLength(1);
+  });
+});
+
+describe('hasTurn', () => {
+  it('is true only when url, username and credential are all present', () => {
+    expect(hasTurn(complete)).toBe(true);
+  });
+
+  it('is false when any part of the triple is missing', () => {
+    expect(hasTurn({ ...complete, turnUrls: '' })).toBe(false);
+    expect(hasTurn({ ...complete, turnUsername: '' })).toBe(false);
+    expect(hasTurn({ ...complete, turnCredential: '' })).toBe(false);
+  });
+
+  it('is false for no config at all, and for urls that are only separators', () => {
+    expect(hasTurn({})).toBe(false);
+    expect(hasTurn({ ...complete, turnUrls: ' , ' })).toBe(false);
+  });
+
+  it('agrees with iceServers about whether a relay exists', () => {
+    expect(hasTurn(complete)).toBe(iceServers(complete).length > 1);
+    expect(hasTurn({})).toBe(iceServers({}).length > 1);
   });
 });

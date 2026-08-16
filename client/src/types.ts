@@ -1,3 +1,4 @@
+import type { MediaMode } from './webrtc/media';
 import type { Bucket, LinkQuality } from './webrtc/quality';
 
 export interface Participant {
@@ -56,6 +57,7 @@ export interface SessionState {
   remoteStats: Record<string, PeerStat[]>;
   attachmentError: string | null;
   mediaError: string | null;
+  mediaMode: MediaMode;
   micOn: boolean;
   cameraOn: boolean;
   connectedAt: number | null;

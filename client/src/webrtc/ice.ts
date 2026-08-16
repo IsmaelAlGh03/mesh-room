@@ -19,15 +19,20 @@ function urlList(raw: string | undefined): string[] {
     .filter(Boolean);
 }
 
-export function iceServers(config: IceConfig = envConfig): RTCIceServer[] {
-  const servers: RTCIceServer[] = [{ urls: STUN_URLS }];
+function turnServer(config: IceConfig): RTCIceServer | null {
   const urls = urlList(config.turnUrls);
   const username = config.turnUsername ?? '';
   const credential = config.turnCredential ?? '';
 
-  if (urls.length > 0 && username !== '' && credential !== '') {
-    servers.push({ urls, username, credential });
-  }
+  if (urls.length === 0 || username === '' || credential === '') return null;
+  return { urls, username, credential };
+}
 
-  return servers;
+export function iceServers(config: IceConfig = envConfig): RTCIceServer[] {
+  const turn = turnServer(config);
+  return turn === null ? [{ urls: STUN_URLS }] : [{ urls: STUN_URLS }, turn];
+}
+
+export function hasTurn(config: IceConfig = envConfig): boolean {
+  return turnServer(config) !== null;
 }

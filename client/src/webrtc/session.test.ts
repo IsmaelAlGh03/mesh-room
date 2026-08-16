@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Socket } from 'socket.io-client';
-import { createMeshSession, describeMediaError } from './session';
+import { createMeshSession } from './session';
 
 type Listener = (...args: never[]) => void;
 
@@ -160,7 +160,7 @@ describe('joining with media already resolved', () => {
   });
 
   it('still falls back to getMedia when no stream is supplied', async () => {
-    const getMedia = vi.fn(async () => emptyStream);
+    const getMedia = vi.fn(async (_constraints: MediaStreamConstraints) => emptyStream);
     const session = createMeshSession({
       roomId: 'alpha',
       getSocket: () => createFakeSocket() as unknown as Socket,
@@ -171,33 +171,6 @@ describe('joining with media already resolved', () => {
     await session.join();
 
     expect(getMedia).toHaveBeenCalled();
-  });
-});
-
-describe('describeMediaError', () => {
-  const denied = new DOMException('denied', 'NotAllowedError');
-  const insecure = new TypeError("Cannot read properties of undefined (reading 'getUserMedia')");
-
-  it('names the secure connection when the page is not a secure context', () => {
-    expect(describeMediaError(insecure, false)).toBe(
-      'The camera and microphone need a secure connection. Open this page over HTTPS.',
-    );
-  });
-
-  it('blames the secure context before the error, since mediaDevices is missing entirely', () => {
-    expect(describeMediaError(denied, false)).toContain('secure connection');
-  });
-
-  it('still reports a blocked permission on a secure page', () => {
-    expect(describeMediaError(denied, true)).toBe(
-      'Your browser is blocking the camera and microphone. Allow them, then reload.',
-    );
-  });
-
-  it('falls back to the generic message for an unknown error on a secure page', () => {
-    expect(describeMediaError(new TypeError('something else'), true)).toBe(
-      'The camera and microphone would not start. Reload to try again.',
-    );
   });
 });
 

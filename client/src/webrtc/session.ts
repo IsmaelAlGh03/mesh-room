@@ -12,6 +12,7 @@ import {
 } from './chunker';
 import { createChannelLink, type ChannelLink } from './datachannel';
 import { iceServers } from './ice';
+import { openMedia, type MediaMode } from './media';
 import { createPeerLink, isPolite, type PeerLink } from './peers';
 import {
   deriveLink,
@@ -35,7 +36,7 @@ export interface MeshSessionOptions {
   roomId: string;
   displayName?: string;
   getSocket?: () => Socket;
-  getMedia?: () => Promise<MediaStream>;
+  getMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
   createConnection?: () => RTCPeerConnection;
 }
 
@@ -77,34 +78,13 @@ interface PeerEntry {
   cameraOn: boolean;
 }
 
-export function describeMediaError(
-  error: unknown,
-  secureContext: boolean = window.isSecureContext,
-): string {
-  const name = error instanceof DOMException ? error.name : '';
-
-  // Off a secure origin there is no navigator.mediaDevices at all, so no error name is meaningful.
-  if (!secureContext) {
-    return 'The camera and microphone need a secure connection. Open this page over HTTPS.';
-  }
-  if (name === 'NotAllowedError') {
-    return 'Your browser is blocking the camera and microphone. Allow them, then reload.';
-  }
-  if (name === 'NotReadableError') {
-    return 'Another app is using your camera. Close it, then reload.';
-  }
-  if (name === 'NotFoundError') {
-    return 'No camera or microphone found. Connect one, then reload.';
-  }
-  return 'The camera and microphone would not start. Reload to try again.';
-}
-
 export function createMeshSession(options: MeshSessionOptions): MeshSession {
   const {
     roomId,
     displayName: initialName = '',
     getSocket: resolveSocket = getSocket,
-    getMedia = () => navigator.mediaDevices.getUserMedia({ video: true, audio: true }),
+    getMedia = (constraints: MediaStreamConstraints) =>
+      navigator.mediaDevices.getUserMedia(constraints),
     createConnection = () => new RTCPeerConnection({ iceServers: iceServers() }),
   } = options;
 
@@ -118,6 +98,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
   let announcedName = initialName;
   let localStream: MediaStream | null = null;
   let mediaError: string | null = null;
+  let mediaMode: MediaMode = 'full';
   let connectedAt: number | null = null;
   let messages: ChatMessage[] = [];
   let remoteStats: Record<string, PeerStat[]> = {};
@@ -132,6 +113,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     remoteStats: {},
     attachmentError: null,
     mediaError: null,
+    mediaMode: 'full',
     micOn: false,
     cameraOn: false,
     connectedAt: null,
@@ -161,6 +143,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
       remoteStats,
       attachmentError,
       mediaError,
+      mediaMode,
       micOn: tracksEnabled('audio'),
       cameraOn: tracksEnabled('video'),
       connectedAt,
@@ -441,13 +424,13 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
 
     if (details.stream !== undefined) {
       localStream = details.stream;
+      mediaMode = 'full';
       mediaError = null;
     } else {
-      try {
-        localStream = await getMedia();
-      } catch (error) {
-        mediaError = describeMediaError(error);
-      }
+      const opened = await openMedia((constraints) => getMedia(constraints));
+      localStream = opened.stream;
+      mediaMode = opened.mode;
+      mediaError = opened.error;
     }
 
     if (details.micOn !== undefined) setEnabled('audio', details.micOn);
@@ -517,6 +500,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
   function reset(): void {
     status = 'idle';
     mediaError = null;
+    mediaMode = 'full';
     publish();
   }
 
