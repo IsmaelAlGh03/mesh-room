@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChatPanel } from '../components/ChatPanel';
 import { ControlBar } from '../components/ControlBar';
@@ -5,6 +6,7 @@ import { CopyLink } from '../components/CopyLink';
 import { PreJoin } from '../components/PreJoin';
 import { VideoGrid } from '../components/VideoGrid';
 import { saveTranscript } from '../lib/save-transcript';
+import { buildLinks } from '../webrtc/mesh-links';
 import { useRoomCount } from '../webrtc/useRoomCount';
 import { useWebRTC } from '../webrtc/useWebRTC';
 import type { SessionStatus } from '../types';
@@ -23,6 +25,11 @@ export function RoomPage(): JSX.Element {
   const room = useWebRTC(roomId ?? '');
   const { status, localStream, participants, mediaError } = room;
   const occupancy = useRoomCount(roomId ?? '', status === 'idle');
+  const [linksView, setLinksView] = useState(false);
+  const links = useMemo(
+    () => buildLinks(participants, room.remoteStats),
+    [participants, room.remoteStats],
+  );
 
   const inRoom = status === 'connecting' || status === 'connected';
   const showsCount = inRoom;
@@ -102,6 +109,8 @@ export function RoomPage(): JSX.Element {
               participants={participants}
               micOn={room.micOn}
               cameraOn={room.cameraOn}
+              links={links}
+              showLinks={linksView}
             />
           </div>
           <ControlBar
@@ -109,8 +118,10 @@ export function RoomPage(): JSX.Element {
             cameraOn={room.cameraOn}
             connectedAt={room.connectedAt}
             exportable={room.messages.length > 0}
+            linksView={linksView}
             onToggleMic={room.toggleMic}
             onToggleCamera={room.toggleCamera}
+            onToggleLinks={() => setLinksView((open) => !open)}
             onExport={() => saveTranscript(room.messages, roomId ?? '')}
             onLeave={room.leave}
           />

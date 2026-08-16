@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { DeviceIcon, ExportIcon, LeaveIcon } from './icons';
+import { DeviceIcon, ExportIcon, LeaveIcon, LinksIcon } from './icons';
 import { formatDuration } from '../lib/duration';
 
 interface ControlBarProps {
@@ -7,8 +7,10 @@ interface ControlBarProps {
   cameraOn: boolean;
   connectedAt: number | null;
   exportable: boolean;
+  linksView: boolean;
   onToggleMic: () => void;
   onToggleCamera: () => void;
+  onToggleLinks: () => void;
   onExport: () => Promise<void> | void;
   onLeave: () => void;
 }
@@ -47,8 +49,10 @@ export function ControlBar({
   cameraOn,
   connectedAt,
   exportable,
+  linksView,
   onToggleMic,
   onToggleCamera,
+  onToggleLinks,
   onExport,
   onLeave,
 }: ControlBarProps): JSX.Element {
@@ -79,6 +83,16 @@ export function ControlBar({
       >
         <DeviceIcon device="camera" on={cameraOn} />
         Camera {cameraOn ? 'on' : 'off'}
+      </button>
+
+      <button
+        type="button"
+        aria-pressed={linksView}
+        onClick={onToggleLinks}
+        className={toggleClass(!linksView)}
+      >
+        <LinksIcon />
+        Links
       </button>
 
       <button

@@ -12,6 +12,7 @@ interface ParticipantTileProps {
   cameraOn?: boolean;
   relayed?: boolean;
   degraded?: boolean;
+  dimmed?: boolean;
   fields?: string[];
   health?: number | null;
 }
@@ -43,6 +44,7 @@ export function ParticipantTile({
   cameraOn = true,
   relayed = false,
   degraded: isDegraded = false,
+  dimmed = false,
   fields,
   health = null,
 }: ParticipantTileProps): JSX.Element {
@@ -81,7 +83,10 @@ export function ParticipantTile({
   return (
     <figure className="m-0 flex flex-col">
       <div
-        className={`relative aspect-video border-[1.5px] ${degraded ? 'border-alert' : 'border-ink'}`}
+        data-dimmed={dimmed || undefined}
+        className={`relative aspect-video border-[1.5px] ${
+          degraded ? 'border-alert' : 'border-ink'
+        } ${dimmed ? 'opacity-40' : ''}`}
       >
         {hasVideo ? (
           <video

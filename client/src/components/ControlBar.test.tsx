@@ -9,8 +9,10 @@ function renderBar(overrides: Partial<Parameters<typeof ControlBar>[0]> = {}) {
     cameraOn: true,
     connectedAt: null,
     exportable: true,
+    linksView: false,
     onToggleMic: vi.fn(),
     onToggleCamera: vi.fn(),
+    onToggleLinks: vi.fn(),
     onExport: vi.fn(),
     onLeave: vi.fn(),
     ...overrides,
@@ -82,6 +84,23 @@ describe('ControlBar', () => {
 
     finish();
     expect(await screen.findByRole('button', { name: 'Take a copy' })).toBeEnabled();
+  });
+
+  it('offers the links view and reports each press', async () => {
+    const user = userEvent.setup();
+    const props = renderBar({ linksView: false });
+
+    const button = screen.getByRole('button', { name: 'Links' });
+    expect(button).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(button);
+    expect(props.onToggleLinks).toHaveBeenCalledOnce();
+  });
+
+  it('marks the links button pressed while the view is open', () => {
+    renderBar({ linksView: true });
+
+    expect(screen.getByRole('button', { name: 'Links' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('spells out what the copy is for', () => {

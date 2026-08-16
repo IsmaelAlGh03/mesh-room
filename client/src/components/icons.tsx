@@ -98,6 +98,26 @@ export function ExportIcon({ className = BASE }: IconProps): JSX.Element {
   );
 }
 
+export function LinksIcon({ className = BASE }: IconProps): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="square"
+    >
+      <path d="M10 3.5L3.5 14.5h13z" />
+      <path d="M10 3.5v11" />
+      <circle cx="10" cy="3.5" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="3.5" cy="14.5" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="16.5" cy="14.5" r="1.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function LeaveIcon({ className = BASE }: IconProps): JSX.Element {
   return (
     <svg
