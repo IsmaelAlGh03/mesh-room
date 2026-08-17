@@ -13,6 +13,7 @@ interface VideoGridProps {
   cameraOn?: boolean;
   links?: MeshLink[];
   showLinks?: boolean;
+  strip?: boolean;
 }
 
 const COLUMNS = [1, 1, 2, 3, 2, 3, 3];
@@ -53,6 +54,7 @@ export function VideoGrid({
   cameraOn = true,
   links = [],
   showLinks = false,
+  strip = false,
 }: VideoGridProps): JSX.Element {
   const box = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
@@ -70,7 +72,8 @@ export function VideoGrid({
     if (element === null) return;
 
     const measure = (): void => {
-      setMaxWidth(fitWidth(element, columns, headcount));
+      // A strip is height-driven and single-row, so the width cap has nothing to solve.
+      setMaxWidth(strip ? null : fitWidth(element, columns, headcount));
 
       const container = grid.current;
       if (container === null) return;
@@ -109,7 +112,7 @@ export function VideoGrid({
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [columns, headcount, idKey, showLinks]);
+  }, [columns, headcount, idKey, showLinks, strip]);
 
   const overlay = (
     <ConnectionOverlay
@@ -128,10 +131,17 @@ export function VideoGrid({
   );
 
   return (
-    <div ref={box} className="flex h-full min-h-0 items-center justify-center">
+    <div
+      ref={box}
+      className={
+        strip
+          ? 'flex shrink-0 justify-center overflow-x-auto'
+          : 'flex min-h-0 flex-1 items-center justify-center'
+      }
+    >
       {/* The overlay is inset to this box, so it has to be the grid's box exactly, not wider. */}
       <div
-        className="relative mx-auto w-full"
+        className={strip ? 'relative' : 'relative mx-auto w-full'}
         style={maxWidth === null ? undefined : { maxWidth }}
       >
         {showLinks && frame.ring && (
@@ -144,8 +154,13 @@ export function VideoGrid({
 
         <div
           ref={grid}
-          data-columns={columns}
-          className={`grid w-full gap-4 sm:gap-gutter ${COLUMN_CLASS[columns] ?? COLUMN_CLASS[3]}`}
+          data-columns={strip ? 0 : columns}
+          data-strip={strip || undefined}
+          className={
+            strip
+              ? 'flex gap-4 [&>figure]:w-36 [&>figure]:shrink-0'
+              : `grid w-full gap-4 sm:gap-gutter ${COLUMN_CLASS[columns] ?? COLUMN_CLASS[3]}`
+          }
         >
           <ParticipantTile
             displayName="You"
@@ -155,6 +170,7 @@ export function VideoGrid({
             micOn={micOn}
             cameraOn={cameraOn}
             dimmed={showLinks}
+            compact={strip}
           />
           {participants.map((peer) => (
             <ParticipantTile
@@ -165,6 +181,7 @@ export function VideoGrid({
               micOn={peer.micOn}
               cameraOn={peer.cameraOn}
               dimmed={showLinks}
+            compact={strip}
               relayed={peer.quality?.relayed ?? false}
               degraded={peer.quality?.bucket === 'poor'}
               lost={peer.lost}

@@ -37,6 +37,24 @@ export function DeviceIcon({ device, on, className = BASE }: DeviceIconProps): J
   );
 }
 
+export function ScreenIcon({ className = BASE }: IconProps): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="square"
+    >
+      <rect x="2.5" y="3.5" width="15" height="10" />
+      <path d="M7 16.5h6" />
+      <path d="M10 10.5v-4M10 6.5L8 8.5M10 6.5l2 2" />
+    </svg>
+  );
+}
+
 export function AttachIcon({ className = BASE }: IconProps): JSX.Element {
   return (
     <svg

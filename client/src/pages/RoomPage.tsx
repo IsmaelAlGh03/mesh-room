@@ -6,7 +6,9 @@ import { CopyLink } from '../components/CopyLink';
 import { PreJoin } from '../components/PreJoin';
 import { VideoGrid } from '../components/VideoGrid';
 import { saveTranscript } from '../lib/save-transcript';
-import { buildLinks } from '../webrtc/mesh-links';
+import { Stage } from '../components/Stage';
+import { buildLinks, LOCAL_ID } from '../webrtc/mesh-links';
+import { stageHolder } from '../webrtc/stage';
 import { useRoomCount } from '../webrtc/useRoomCount';
 import { useWebRTC } from '../webrtc/useWebRTC';
 import type { SessionStatus } from '../types';
@@ -30,6 +32,15 @@ export function RoomPage(): JSX.Element {
     () => buildLinks(participants, room.remoteStats),
     [participants, room.remoteStats],
   );
+
+  const holder = stageHolder(participants, room.localId, room.sharing);
+  const held = participants.find((peer) => peer.socketId === holder) ?? null;
+  const stage =
+    holder === null
+      ? null
+      : holder === LOCAL_ID
+        ? { holder, stream: room.screenStream, name: 'You' }
+        : { holder, stream: held?.screenStream ?? null, name: held?.displayName ?? 'A peer' };
 
   const inRoom = status === 'connecting' || status === 'connected';
   const showsCount = inRoom;
@@ -103,7 +114,14 @@ export function RoomPage(): JSX.Element {
 
       {showsCount && (
         <>
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto py-8">
+          <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto py-8">
+            {stage !== null && (
+              <Stage
+                stream={stage.stream}
+                sharerName={stage.name}
+                isLocal={stage.holder === LOCAL_ID}
+              />
+            )}
             <VideoGrid
               localStream={localStream}
               participants={participants}
@@ -111,6 +129,7 @@ export function RoomPage(): JSX.Element {
               cameraOn={room.cameraOn}
               links={links}
               showLinks={linksView}
+              strip={stage !== null}
             />
           </div>
           <ControlBar
@@ -119,9 +138,12 @@ export function RoomPage(): JSX.Element {
             connectedAt={room.connectedAt}
             exportable={room.messages.length > 0}
             linksView={linksView}
+            sharing={room.sharing !== null}
+            sharedBy={stage === null || stage.holder === LOCAL_ID ? null : stage.name}
             onToggleMic={room.toggleMic}
             onToggleCamera={room.toggleCamera}
             onToggleLinks={() => setLinksView((open) => !open)}
+            onToggleShare={() => void (room.sharing === null ? room.startShare() : room.stopShare())}
             onExport={() => saveTranscript(room.messages, roomId ?? '')}
             onLeave={room.leave}
           />
@@ -130,6 +152,7 @@ export function RoomPage(): JSX.Element {
             onSend={room.sendChat}
             onAttach={room.sendAttachment}
             attachmentError={room.attachmentError}
+            compact={stage !== null}
           />
         </>
       )}

@@ -167,6 +167,23 @@ describe('ParticipantTile', () => {
     expect(screen.getByText('audio only')).toBeInTheDocument();
   });
 
+  it('drops the figures in a strip, where there is no width to print them in', () => {
+    render(
+      <ParticipantTile
+        displayName="Priya"
+        stream={streamWithVideo()}
+        state="connected"
+        fields={['Direct', '<1ms', '0.0%', '449K']}
+        health={0.9}
+        compact
+      />,
+    );
+
+    expect(screen.getByText('Priya')).toBeInTheDocument();
+    expect(screen.queryByText('Direct')).not.toBeInTheDocument();
+    expect(screen.queryByText('449K')).not.toBeInTheDocument();
+  });
+
   it('does not let stale figures outlive the link they measured', () => {
     render(
       <ParticipantTile

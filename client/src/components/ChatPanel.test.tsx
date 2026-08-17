@@ -130,4 +130,24 @@ describe('ChatPanel', () => {
 
     expect(screen.getByRole('button', { name: '1 new below' })).toBeInTheDocument();
   });
+
+  it('gives its height back to the room while someone is presenting, keeping the composer', () => {
+    render(
+      <ChatPanel messages={[message({ text: 'earlier' })]} onSend={vi.fn()} onAttach={vi.fn()} compact />,
+    );
+
+    expect(screen.queryByText('earlier')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/type a message/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument();
+  });
+
+  it('brings the messages back when the presentation ends', () => {
+    const { rerender } = render(
+      <ChatPanel messages={[message({ text: 'earlier' })]} onSend={vi.fn()} onAttach={vi.fn()} compact />,
+    );
+
+    rerender(<ChatPanel messages={[message({ text: 'earlier' })]} onSend={vi.fn()} onAttach={vi.fn()} />);
+
+    expect(screen.getByText('earlier')).toBeInTheDocument();
+  });
 });

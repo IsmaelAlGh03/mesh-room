@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { DeviceIcon, ExportIcon, LeaveIcon, LinksIcon } from './icons';
+import { DeviceIcon, ExportIcon, LeaveIcon, LinksIcon, ScreenIcon } from './icons';
 import { formatDuration } from '../lib/duration';
 
 interface ControlBarProps {
@@ -8,9 +8,12 @@ interface ControlBarProps {
   connectedAt: number | null;
   exportable: boolean;
   linksView: boolean;
+  sharing: boolean;
+  sharedBy: string | null;
   onToggleMic: () => void;
   onToggleCamera: () => void;
   onToggleLinks: () => void;
+  onToggleShare: () => void;
   onExport: () => Promise<void> | void;
   onLeave: () => void;
 }
@@ -50,14 +53,18 @@ export function ControlBar({
   connectedAt,
   exportable,
   linksView,
+  sharing,
+  sharedBy,
   onToggleMic,
   onToggleCamera,
   onToggleLinks,
+  onToggleShare,
   onExport,
   onLeave,
 }: ControlBarProps): JSX.Element {
   const elapsed = useElapsed(connectedAt);
   const [copying, setCopying] = useState(false);
+  const blocked = !sharing && sharedBy !== null;
 
   async function takeCopy(): Promise<void> {
     setCopying(true);
@@ -83,6 +90,17 @@ export function ControlBar({
       >
         <DeviceIcon device="camera" on={cameraOn} />
         Camera {cameraOn ? 'on' : 'off'}
+      </button>
+
+      <button
+        type="button"
+        aria-pressed={sharing}
+        disabled={blocked}
+        onClick={onToggleShare}
+        className={blocked ? actionClass(false) : toggleClass(!sharing)}
+      >
+        <ScreenIcon />
+        {blocked ? `${sharedBy} is sharing` : `Screen ${sharing ? 'on' : 'off'}`}
       </button>
 
       <button

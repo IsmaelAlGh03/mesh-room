@@ -9,6 +9,7 @@ interface ChatPanelProps {
   onSend: (text: string) => void;
   onAttach: (file: File) => void;
   attachmentError?: string | null;
+  compact?: boolean;
 }
 
 const CAVEAT = 'You only have messages from after you joined. Nothing is kept.';
@@ -23,6 +24,7 @@ export function ChatPanel({
   onSend,
   onAttach,
   attachmentError = null,
+  compact = false,
 }: ChatPanelProps): JSX.Element {
   const log = useRef<HTMLDivElement>(null);
   const picker = useRef<HTMLInputElement>(null);
@@ -82,11 +84,14 @@ export function ChatPanel({
       aria-label="Messages"
       className="mt-8 flex flex-col border-t-[1.5px] border-ink pt-4"
     >
-      <div className="flex items-baseline justify-between gap-4">
-        <h2 className="font-mono text-[10px] tracking-[0.1em] uppercase opacity-60">Messages</h2>
-        <p className="font-mono text-[10px] tracking-[0.03em] uppercase opacity-50">{CAVEAT}</p>
-      </div>
+      {!compact && (
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="font-mono text-[10px] tracking-[0.1em] uppercase opacity-60">Messages</h2>
+          <p className="font-mono text-[10px] tracking-[0.03em] uppercase opacity-50">{CAVEAT}</p>
+        </div>
+      )}
 
+      {!compact && (
       <div className="relative">
         <div
           ref={log}
@@ -139,6 +144,7 @@ export function ChatPanel({
           </button>
         )}
       </div>
+      )}
 
       {attachmentError !== null && (
         <p role="alert" className="mt-3 font-mono text-[11px] text-alert">

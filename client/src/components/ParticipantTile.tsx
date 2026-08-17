@@ -13,6 +13,7 @@ interface ParticipantTileProps {
   relayed?: boolean;
   degraded?: boolean;
   lost?: boolean;
+  compact?: boolean;
   dimmed?: boolean;
   fields?: string[];
   health?: number | null;
@@ -46,6 +47,7 @@ export function ParticipantTile({
   relayed = false,
   degraded: isDegraded = false,
   lost = false,
+  compact = false,
   dimmed = false,
   fields,
   health = null,
@@ -131,7 +133,7 @@ export function ParticipantTile({
         )}
       </div>
 
-      <figcaption className="mt-2 min-h-[2.75rem]">
+      <figcaption className={compact ? 'mt-2' : 'mt-2 min-h-[2.75rem]'}>
         <span className="flex items-center gap-2">
           <MeshNode ringed={isLocal} className={`h-3 w-3 ${degraded ? 'text-alert' : ''}`} />
           <span
@@ -141,20 +143,22 @@ export function ParticipantTile({
             {displayName}
           </span>
         </span>
-        <span
-          className={`mt-1 grid grid-flow-col justify-start gap-x-3 font-mono text-[11px] tracking-[0.04em] tabular-nums uppercase ${
-            degraded ? 'text-alert' : 'opacity-65'
-          }`}
-        >
-          {readout.map((field, index) => (
-            <span key={field} style={{ minWidth: FIELD_WIDTHS[index] }}>
-              {field}
-            </span>
-          ))}
-        </span>
+        {!compact && (
+          <span
+            className={`mt-1 grid grid-flow-col justify-start gap-x-3 font-mono text-[11px] tracking-[0.04em] tabular-nums uppercase ${
+              degraded ? 'text-alert' : 'opacity-65'
+            }`}
+          >
+            {readout.map((field, index) => (
+              <span key={field} style={{ minWidth: FIELD_WIDTHS[index] }}>
+                {field}
+              </span>
+            ))}
+          </span>
+        )}
       </figcaption>
 
-      {health !== null && (
+      {!compact && health !== null && (
         <span
           aria-hidden="true"
           className={`mt-1 block h-0.5 ${degraded ? 'bg-alert' : 'bg-ink'}`}

@@ -10,9 +10,12 @@ function renderBar(overrides: Partial<Parameters<typeof ControlBar>[0]> = {}) {
     connectedAt: null,
     exportable: true,
     linksView: false,
+    sharing: false,
+    sharedBy: null,
     onToggleMic: vi.fn(),
     onToggleCamera: vi.fn(),
     onToggleLinks: vi.fn(),
+    onToggleShare: vi.fn(),
     onExport: vi.fn(),
     onLeave: vi.fn(),
     ...overrides,
@@ -133,5 +136,34 @@ describe('ControlBar timer', () => {
     renderBar({ connectedAt: null });
 
     expect(screen.queryByText(/Open/)).not.toBeInTheDocument();
+  });
+
+  it('names the screen state it is in, like the other toggles', async () => {
+    const props = renderBar({ sharing: false });
+    const button = screen.getByRole('button', { name: 'Screen off' });
+
+    expect(button).toHaveAttribute('aria-pressed', 'false');
+    expect(button).toBeEnabled();
+
+    await userEvent.click(button);
+    expect(props.onToggleShare).toHaveBeenCalledOnce();
+  });
+
+  it('reads as on while you are the one sharing', () => {
+    renderBar({ sharing: true });
+
+    expect(screen.getByRole('button', { name: 'Screen on' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  it('names whoever holds the screen and blocks the control while they do', async () => {
+    const props = renderBar({ sharing: false, sharedBy: 'Bo' });
+    const button = screen.getByRole('button', { name: 'Bo is sharing' });
+
+    expect(button).toBeDisabled();
+    await userEvent.click(button);
+    expect(props.onToggleShare).not.toHaveBeenCalled();
   });
 });

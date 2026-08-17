@@ -8,11 +8,13 @@ export interface Participant {
 
 export interface PeerParticipant extends Participant {
   stream: MediaStream | null;
+  screenStream: MediaStream | null;
   connectionState: RTCPeerConnectionState;
   quality: LinkQuality | null;
   micOn: boolean;
   cameraOn: boolean;
   lost: boolean;
+  sharing: string | null;
 }
 
 export interface PeerStat {
@@ -25,7 +27,7 @@ export interface PeerStat {
 
 export type MeshMessage =
   | { type: 'chat'; id: string; text: string; at: number }
-  | { type: 'presence'; micOn: boolean; cameraOn: boolean }
+  | { type: 'presence'; micOn: boolean; cameraOn: boolean; sharing?: string | null }
   | { type: 'stats'; at: number; links: PeerStat[] }
   | { type: 'file-meta'; id: string; name: string; mime: string; size: number; chunks: number; at: number }
   | { type: 'file-chunk'; id: string; index: number; data: string }
@@ -53,6 +55,9 @@ export type SessionStatus = 'idle' | 'connecting' | 'connected' | 'room-full' | 
 export interface SessionState {
   status: SessionStatus;
   localStream: MediaStream | null;
+  screenStream: MediaStream | null;
+  sharing: string | null;
+  localId: string;
   participants: PeerParticipant[];
   messages: ChatMessage[];
   remoteStats: Record<string, PeerStat[]>;

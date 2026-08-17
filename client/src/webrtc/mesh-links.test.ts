@@ -7,6 +7,8 @@ function peer(socketId: string, quality: PeerParticipant['quality'] = null): Pee
     socketId,
     displayName: socketId,
     stream: null,
+    screenStream: null,
+    sharing: null,
     connectionState: 'connected',
     quality,
     micOn: true,

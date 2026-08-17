@@ -9,6 +9,8 @@ function peers(count: number): PeerParticipant[] {
     socketId: `peer-${index}`,
     displayName: `Peer ${index}`,
     stream: null,
+    screenStream: null,
+    sharing: null,
     connectionState: 'connected' as RTCPeerConnectionState,
     quality: null,
     micOn: true,

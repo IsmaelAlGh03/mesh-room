@@ -8,6 +8,8 @@ export interface RoomControls extends SessionState {
   reset: () => void;
   toggleMic: () => void;
   toggleCamera: () => void;
+  startShare: () => void;
+  stopShare: () => void;
   sendChat: (text: string) => void;
   sendAttachment: (file: File) => void;
 }
@@ -32,6 +34,8 @@ export function useWebRTC(roomId: string): RoomControls {
     reset: session.reset,
     toggleMic: session.toggleMic,
     toggleCamera: session.toggleCamera,
+    startShare: () => void session.startShare(),
+    stopShare: session.stopShare,
     sendChat: session.sendChat,
     sendAttachment: (file: File) => void session.sendAttachment(file),
   };

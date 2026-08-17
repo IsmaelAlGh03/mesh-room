@@ -15,6 +15,7 @@ import { hasTurn, iceServers } from './ice';
 import { openMedia, type MediaMode } from './media';
 import { createPeerLink, isPolite, type PeerLink } from './peers';
 import { GRACE_MS, nextAction, type RecoveryState } from './recovery';
+import { lostContest, type StageClaimant } from './stage';
 import {
   deriveLink,
   readSample,
@@ -38,6 +39,7 @@ export interface MeshSessionOptions {
   displayName?: string;
   getSocket?: () => Socket;
   getMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
+  getDisplay?: () => Promise<MediaStream>;
   createConnection?: () => RTCPeerConnection;
 }
 
@@ -56,6 +58,8 @@ export interface MeshSession {
   reset(): void;
   toggleMic(): void;
   toggleCamera(): void;
+  startShare(): Promise<void>;
+  stopShare(): void;
   sendChat(text: string): void;
   sendAttachment(file: File): Promise<void>;
 }
@@ -71,6 +75,9 @@ interface PeerEntry {
   inbound: Reassembler;
   connection: RTCPeerConnection;
   stream: MediaStream | null;
+  screenStream: MediaStream | null;
+  sharing: string | null;
+  inboundStreams: MediaStream[];
   connectionState: RTCPeerConnectionState;
   quality: LinkQuality | null;
   sample: QualitySample | null;
@@ -89,6 +96,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     getSocket: resolveSocket = getSocket,
     getMedia = (constraints: MediaStreamConstraints) =>
       navigator.mediaDevices.getUserMedia(constraints),
+    getDisplay = () => navigator.mediaDevices.getDisplayMedia({ video: true }),
     createConnection = () => new RTCPeerConnection({ iceServers: iceServers() }),
   } = options;
 
@@ -101,6 +109,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
   let status: SessionStatus = 'idle';
   let announcedName = initialName;
   let localStream: MediaStream | null = null;
+  let screenStream: MediaStream | null = null;
   let mediaError: string | null = null;
   let mediaMode: MediaMode = 'full';
   let connectedAt: number | null = null;
@@ -112,6 +121,9 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
   let state: SessionState = {
     status,
     localStream: null,
+    screenStream: null,
+    sharing: null,
+    localId: '',
     participants: [],
     messages: [],
     remoteStats: {},
@@ -133,16 +145,21 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     const participants: PeerParticipant[] = [...peers.values()].map((entry) => ({
       ...entry.participant,
       stream: entry.stream,
+      screenStream: entry.screenStream,
       connectionState: entry.connectionState,
       quality: entry.quality,
       micOn: entry.micOn,
       cameraOn: entry.cameraOn,
       lost: entry.lost,
+      sharing: entry.sharing,
     }));
 
     state = {
       status,
       localStream,
+      screenStream,
+      sharing: screenStream?.id ?? null,
+      localId: socket?.id ?? '',
       participants,
       messages,
       remoteStats,
@@ -160,8 +177,36 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     for (const entry of peers.values()) entry.channel.send(message);
   }
 
+  function claimants(): StageClaimant[] {
+    return [...peers.values()].map((entry) => ({
+      socketId: entry.participant.socketId,
+      sharing: entry.sharing,
+      lost: entry.lost,
+    }));
+  }
+
+  // Two people can press Share inside one presence round trip; the one the room will not show
+  // has to stop, or it keeps capturing and sending a screen nobody can see.
+  function yieldStage(): void {
+    if (lostContest(claimants(), socket?.id ?? '', screenStream?.id ?? null)) stopShare();
+  }
+
+  // A track can arrive before the presence message naming it, so every inbound stream is kept and
+  // re-sorted whenever the claim changes. Nothing is guessed from track order.
+  function sortStreams(entry: PeerEntry): void {
+    const claimed = entry.inboundStreams.find((stream) => stream.id === entry.sharing) ?? null;
+
+    entry.screenStream = claimed;
+    entry.stream = entry.inboundStreams.find((stream) => stream !== claimed) ?? null;
+  }
+
   function presence(): MeshMessage {
-    return { type: 'presence', micOn: tracksEnabled('audio'), cameraOn: tracksEnabled('video') };
+    return {
+      type: 'presence',
+      micOn: tracksEnabled('audio'),
+      cameraOn: tracksEnabled('video'),
+      sharing: screenStream?.id ?? null,
+    };
   }
 
   function ownStats(): MeshMessage {
@@ -200,6 +245,9 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     } else if (message.type === 'presence') {
       entry.micOn = message.micOn;
       entry.cameraOn = message.cameraOn;
+      entry.sharing = message.sharing ?? null;
+      sortStreams(entry);
+      yieldStage();
     } else if (message.type === 'stats') {
       remoteStats = { ...remoteStats, [from.socketId]: message.links };
     } else if (message.type === 'file-meta') {
@@ -308,6 +356,48 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     publish();
   }
 
+  async function startShare(): Promise<void> {
+    if (screenStream !== null) return;
+
+    let display: MediaStream;
+    try {
+      display = await getDisplay();
+    } catch {
+      // Dismissing the picker is a decision, not a fault, and rejects the same way as a refusal.
+      return;
+    }
+
+    const [track] = display.getVideoTracks();
+    if (track === undefined) return;
+
+    screenStream = display;
+    track.addEventListener('ended', stopShare);
+    for (const entry of peers.values()) entry.connection.addTrack(track, display);
+
+    broadcast(presence());
+    yieldStage();
+    publish();
+  }
+
+  function stopShare(): void {
+    if (screenStream === null) return;
+
+    const tracks = screenStream.getTracks();
+    screenStream = null;
+
+    for (const entry of peers.values()) {
+      for (const sender of entry.connection.getSenders()) {
+        if (sender.track !== null && tracks.includes(sender.track)) {
+          entry.connection.removeTrack(sender);
+        }
+      }
+    }
+    for (const track of tracks) track.stop();
+
+    broadcast(presence());
+    publish();
+  }
+
   function bind<Args extends unknown[]>(event: string, handler: (...args: Args) => void): void {
     const listener = handler as SocketListener;
     bindings.push([event, listener]);
@@ -323,6 +413,9 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
       participant,
       connection,
       stream: null,
+      screenStream: null,
+      sharing: null,
+      inboundStreams: [],
       connectionState: 'new',
       quality: null,
       sample: null,
@@ -348,7 +441,8 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
         initiator,
         send: (data) => socket?.emit('signal', { to: participant.socketId, data }),
         onTrack: (stream) => {
-          entry.stream = stream;
+          if (!entry.inboundStreams.includes(stream)) entry.inboundStreams.push(stream);
+          sortStreams(entry);
           publish();
         },
         onStateChange: (connectionState) => {
@@ -361,6 +455,10 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
 
     peers.set(participant.socketId, entry);
     startPolling();
+
+    if (screenStream !== null) {
+      for (const track of screenStream.getTracks()) connection.addTrack(track, screenStream);
+    }
 
     if (localStream !== null) {
       for (const track of localStream.getTracks()) connection.addTrack(track, localStream);
@@ -550,6 +648,10 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     stopPolling();
     for (const socketId of [...peers.keys()]) removePeer(socketId);
 
+    // Stopped explicitly, or the browser goes on saying you are sharing after the call has ended.
+    screenStream?.getTracks().forEach((track) => track.stop());
+    screenStream = null;
+
     localStream?.getTracks().forEach((track) => track.stop());
     localStream = null;
 
@@ -587,6 +689,8 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     reset,
     toggleMic: () => toggle('audio'),
     toggleCamera: () => toggle('video'),
+    startShare,
+    stopShare,
     sendChat,
     sendAttachment,
   };
