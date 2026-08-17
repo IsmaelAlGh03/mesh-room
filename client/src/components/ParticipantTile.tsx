@@ -12,6 +12,7 @@ interface ParticipantTileProps {
   cameraOn?: boolean;
   relayed?: boolean;
   degraded?: boolean;
+  lost?: boolean;
   dimmed?: boolean;
   fields?: string[];
   health?: number | null;
@@ -44,6 +45,7 @@ export function ParticipantTile({
   cameraOn = true,
   relayed = false,
   degraded: isDegraded = false,
+  lost = false,
   dimmed = false,
   fields,
   health = null,
@@ -54,11 +56,13 @@ export function ParticipantTile({
 
   // A peer transmits black frames rather than stopping, so only their announcement tells us.
   const announcedOff = !isLocal && state === 'connected' && !cameraOn;
+  const showsIdentity = announcedOff || lost;
+  const showsVideo = hasVideo && !showsIdentity;
 
-  // hasVideo remounts the element, and the stream identity never changes, so it has to be a dep.
+  // showsVideo remounts the element, and the stream identity never changes, so it has to be a dep.
   useEffect(() => {
     if (video.current !== null) video.current.srcObject = stream;
-  }, [stream, hasVideo]);
+  }, [stream, showsVideo]);
 
   const statusWord = isLocal
     ? hasVideo
@@ -70,15 +74,17 @@ export function ParticipantTile({
 
   const localFields = hasVideo
     ? ['Local', `${settings?.width ?? 0}×${settings?.height ?? 0}`, `${Math.round(settings?.frameRate ?? 0)}fps`]
-    : ['Local', hasCamera(stream) ? 'camera off' : 'audio only'];
+    : ['Local', stream === null ? 'view only' : hasCamera(stream) ? 'camera off' : 'audio only'];
 
-  if (isLocal && !micOn) localFields.push('Mic off');
+  if (isLocal && !micOn && stream !== null) localFields.push('Mic off');
 
-  const remoteFields = fields ?? [REMOTE_STATUS[state] ?? 'Connected'];
+  // Quality figures outlive the link that measured them, so the state has to outrank them.
+  const remoteStatus = REMOTE_STATUS[state];
+  const remoteFields = remoteStatus !== null ? [remoteStatus] : (fields ?? ['Connected']);
   if (!isLocal && !micOn && state === 'connected') remoteFields.push('Mic off');
 
-  const readout = isLocal ? localFields : remoteFields;
-  const degraded = relayed || isDegraded || state === 'reconnecting';
+  const readout = isLocal ? localFields : lost ? ['Link failed'] : remoteFields;
+  const degraded = relayed || isDegraded || lost || state === 'reconnecting';
 
   return (
     <figure className="m-0 flex flex-col">
@@ -88,7 +94,7 @@ export function ParticipantTile({
           degraded ? 'border-alert' : 'border-ink'
         } ${dimmed ? 'opacity-40' : ''}`}
       >
-        {hasVideo ? (
+        {showsVideo ? (
           <video
             ref={video}
             aria-label={isLocal ? 'Your camera' : `${displayName}'s camera`}
@@ -97,7 +103,7 @@ export function ParticipantTile({
             muted={isLocal}
             className={`mesh-fade h-full w-full object-cover ${isLocal ? '-scale-x-100' : ''}`}
           />
-        ) : announcedOff ? (
+        ) : showsIdentity ? (
           <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-4">
             <MeshNode className="h-3 w-3 opacity-55" />
             <span className="max-w-full truncate text-[1.5rem] font-medium tracking-[-0.02em]">

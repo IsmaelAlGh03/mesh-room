@@ -31,6 +31,23 @@ function figuresFor(link: MeshLink): string[] {
   });
 }
 
+const MAX_LABELS = 3;
+
+// The earned-label rule bounds which links are annotated, not how many, so labels stacked.
+function labelledKeys(links: MeshLink[]): Set<string> {
+  const ranked = links
+    .filter(isWrong)
+    .sort((one, other) => {
+      if ((one.bucket === 'poor') !== (other.bucket === 'poor')) {
+        return one.bucket === 'poor' ? -1 : 1;
+      }
+      return (other.rtt ?? 0) - (one.rtt ?? 0);
+    })
+    .slice(0, MAX_LABELS);
+
+  return new Set(ranked.map(keyOf));
+}
+
 function strokeOf(link: MeshLink): { width: number; className: string; dash?: string } {
   const degraded = link.bucket === 'poor';
 
@@ -52,6 +69,7 @@ export function ConnectionOverlay({
   const [hovered, setHovered] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string | null>(null);
   const at = new Map(nodes.map((node) => [node.id, node]));
+  const named = labelledKeys(links);
 
   return (
     <>
@@ -71,7 +89,7 @@ export function ConnectionOverlay({
           const wrong = isWrong(link);
           const line = pathFor(a, b, nodes);
           const label =
-            wrong || hovered === key || pinned === key ? figuresFor(link).join(' ') : '';
+            named.has(key) || hovered === key || pinned === key ? figuresFor(link).join(' ') : '';
 
           return (
             <g key={key}>

@@ -145,4 +145,52 @@ describe('ParticipantTile', () => {
     expect(screen.queryByText('Camera off')).not.toBeInTheDocument();
     expect(screen.getByText('Connected')).toBeInTheDocument();
   });
+
+  it('separates having no devices at all from having only a microphone', () => {
+    const { rerender } = render(
+      <ParticipantTile displayName="You" stream={null} state="connected" isLocal micOn={false} />,
+    );
+
+    expect(screen.getByText('view only')).toBeInTheDocument();
+    expect(screen.queryByText('audio only')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mic off')).not.toBeInTheDocument();
+
+    rerender(
+      <ParticipantTile
+        displayName="You"
+        stream={streamWithoutVideo()}
+        state="connected"
+        isLocal
+      />,
+    );
+
+    expect(screen.getByText('audio only')).toBeInTheDocument();
+  });
+
+  it('does not let stale figures outlive the link they measured', () => {
+    render(
+      <ParticipantTile
+        displayName="Priya"
+        stream={streamWithVideo()}
+        state="reconnecting"
+        fields={['Direct', '<1ms', '0.0%', '201K']}
+      />,
+    );
+
+    expect(screen.getByText('Reconnecting…')).toBeInTheDocument();
+    expect(screen.queryByText('Direct')).not.toBeInTheDocument();
+    expect(screen.queryByText('201K')).not.toBeInTheDocument();
+  });
+
+  it('shows a lost peer as an identity card rather than a frozen frame', () => {
+    const { container } = render(
+      <ParticipantTile displayName="Priya" stream={streamWithVideo()} state="reconnecting" lost />,
+    );
+
+    expect(container.querySelector('video')).toBeNull();
+    expect(screen.getAllByText('Priya').length).toBeGreaterThan(0);
+    expect(screen.getByText('Link failed')).toBeInTheDocument();
+    expect(screen.queryByText('Reconnecting…')).not.toBeInTheDocument();
+    expect(container.querySelector('.border-alert')).not.toBeNull();
+  });
 });

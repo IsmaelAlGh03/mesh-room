@@ -167,6 +167,7 @@ export function VideoGrid({
               dimmed={showLinks}
               relayed={peer.quality?.relayed ?? false}
               degraded={peer.quality?.bucket === 'poor'}
+              lost={peer.lost}
               fields={peer.quality === null ? undefined : formatFields(peer.quality)}
               health={peer.quality === null ? null : healthFor(peer.quality.bucket)}
             />

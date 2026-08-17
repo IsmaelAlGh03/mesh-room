@@ -163,6 +163,38 @@ describe('ConnectionOverlay', () => {
     expect(priya?.getAttribute('class')).toContain('fill-ink');
   });
 
+  it('annotates only the worst few when many links go bad at once', () => {
+    const four: NodePoint[] = [
+      { id: LOCAL_ID, x: 100, y: 50 },
+      { id: 'b', x: 300, y: 50 },
+      { id: 'c', x: 100, y: 250 },
+      { id: 'd', x: 300, y: 250 },
+    ];
+    const fourNames = { [LOCAL_ID]: 'You', b: 'Priya', c: 'Sam', d: 'Dara' };
+
+    const bad = [
+      link(LOCAL_ID, 'b', { bucket: 'poor', rtt: 900 }),
+      link(LOCAL_ID, 'c', { bucket: 'poor', rtt: 800 }),
+      link(LOCAL_ID, 'd', { bucket: 'poor', rtt: 700 }),
+      link('b', 'c', { bucket: 'poor', rtt: 600 }),
+      link('c', 'd', { relayed: true, rtt: 500 }),
+    ];
+
+    const { container } = render(
+      <ConnectionOverlay nodes={four} links={bad} names={fourNames} width={600} height={400} />,
+    );
+
+    const drawn = container.querySelector('svg')?.textContent ?? '';
+    expect(container.querySelectorAll('svg text')).toHaveLength(3);
+    expect(drawn).toContain('900ms');
+    expect(drawn).toContain('700ms');
+    expect(drawn).not.toContain('600ms');
+    expect(drawn).not.toContain('500ms');
+
+    // Every bad link keeps its stroke; only the labels are capped.
+    expect(container.querySelectorAll('path[data-link]')).toHaveLength(5);
+  });
+
   it('rings the local node', () => {
     const { container } = overlay([link(LOCAL_ID, 'b')]);
 

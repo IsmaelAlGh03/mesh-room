@@ -12,6 +12,7 @@ export interface PeerParticipant extends Participant {
   quality: LinkQuality | null;
   micOn: boolean;
   cameraOn: boolean;
+  lost: boolean;
 }
 
 export interface PeerStat {

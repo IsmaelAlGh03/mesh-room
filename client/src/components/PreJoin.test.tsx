@@ -1,7 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PreJoin } from './PreJoin';
+
+const socket = { connected: true, on: vi.fn(), off: vi.fn(), connect: vi.fn() };
+
+vi.mock('../socket', () => ({ getSocket: () => socket }));
 
 function fakeStream(): MediaStream {
   const video = { kind: 'video', enabled: true, stop: vi.fn(), getSettings: () => ({ width: 640, height: 480, frameRate: 30 }) };
@@ -33,6 +37,7 @@ function setupMedia(getUserMedia: () => Promise<MediaStream>): void {
 
 beforeEach(() => {
   setupMedia(async () => fakeStream());
+  socket.connected = true;
 });
 
 describe('PreJoin', () => {
@@ -130,5 +135,32 @@ describe('PreJoin', () => {
     await userEvent.type(screen.getByLabelText(/your name/i), 'Ada');
 
     expect(screen.getByRole('button', { name: /join/i })).toBeDisabled();
+  });
+
+  it('explains a sleeping server once the wait gets long, and holds Join back', async () => {
+    socket.connected = false;
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      render(<PreJoin roomId="alpha" count={null} capacity={6} onJoin={vi.fn()} />);
+
+      expect(screen.queryByText(/waking the server up/i)).not.toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(3100);
+      });
+
+      expect(screen.getByText(/waking the server up/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /join/i })).toBeDisabled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says nothing about the server when it answers straight away', async () => {
+    render(<PreJoin roomId="alpha" count={0} capacity={6} onJoin={vi.fn()} />);
+
+    await screen.findByRole('button', { name: /join/i });
+
+    expect(screen.queryByText(/waking the server up/i)).not.toBeInTheDocument();
   });
 });

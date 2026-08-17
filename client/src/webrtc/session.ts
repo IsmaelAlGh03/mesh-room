@@ -11,9 +11,10 @@ import {
   type Reassembler,
 } from './chunker';
 import { createChannelLink, type ChannelLink } from './datachannel';
-import { iceServers } from './ice';
+import { hasTurn, iceServers } from './ice';
 import { openMedia, type MediaMode } from './media';
 import { createPeerLink, isPolite, type PeerLink } from './peers';
+import { GRACE_MS, nextAction, type RecoveryState } from './recovery';
 import {
   deriveLink,
   readSample,
@@ -76,6 +77,9 @@ interface PeerEntry {
   streak: number;
   micOn: boolean;
   cameraOn: boolean;
+  recovery: RecoveryState;
+  recoveryTimer: ReturnType<typeof setTimeout> | null;
+  lost: boolean;
 }
 
 export function createMeshSession(options: MeshSessionOptions): MeshSession {
@@ -133,6 +137,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
       quality: entry.quality,
       micOn: entry.micOn,
       cameraOn: entry.cameraOn,
+      lost: entry.lost,
     }));
 
     state = {
@@ -313,6 +318,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     if (peers.has(participant.socketId)) return;
 
     const connection = createConnection();
+    const polite = isPolite(socket?.id ?? '', participant.socketId);
     const entry: PeerEntry = {
       participant,
       connection,
@@ -323,6 +329,9 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
       streak: 0,
       micOn: true,
       cameraOn: true,
+      recovery: { attempts: 0, relayTried: false },
+      recoveryTimer: null,
+      lost: false,
       inbound: createReassembler(),
       channel: createChannelLink({
         connection,
@@ -335,7 +344,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
       }),
       link: createPeerLink({
         connection,
-        polite: isPolite(socket?.id ?? '', participant.socketId),
+        polite,
         initiator,
         send: (data) => socket?.emit('signal', { to: participant.socketId, data }),
         onTrack: (stream) => {
@@ -344,6 +353,7 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
         },
         onStateChange: (connectionState) => {
           entry.connectionState = connectionState;
+          driveRecovery(entry, polite);
           publish();
         },
       }),
@@ -362,10 +372,72 @@ export function createMeshSession(options: MeshSessionOptions): MeshSession {
     publish();
   }
 
+  function clearRecoveryTimer(entry: PeerEntry): void {
+    if (entry.recoveryTimer === null) return;
+    clearTimeout(entry.recoveryTimer);
+    entry.recoveryTimer = null;
+  }
+
+  // Chrome fires no further connectionstatechange once a link is failed, so every rung after the
+  // first has to be reached on a timer rather than an event.
+  function armRecovery(entry: PeerEntry, polite: boolean, promote: boolean): void {
+    if (entry.recoveryTimer !== null) return;
+
+    entry.recoveryTimer = setTimeout(() => {
+      entry.recoveryTimer = null;
+      if (promote) {
+        if (entry.connectionState !== 'disconnected') return;
+        entry.connectionState = 'failed';
+      } else if (entry.connectionState !== 'failed') {
+        return;
+      }
+      driveRecovery(entry, polite);
+      publish();
+    }, GRACE_MS);
+  }
+
+  function driveRecovery(entry: PeerEntry, polite: boolean): void {
+    const action = nextAction(entry.connectionState, entry.recovery, {
+      canOffer: !polite,
+      hasTurn: hasTurn(),
+    });
+
+    if (action !== 'wait') clearRecoveryTimer(entry);
+
+    if (action === 'idle') {
+      entry.recovery = { attempts: 0, relayTried: false };
+      entry.lost = false;
+      return;
+    }
+
+    if (action === 'restart') {
+      entry.recovery = { ...entry.recovery, attempts: entry.recovery.attempts + 1 };
+      entry.link.restart();
+      armRecovery(entry, polite, false);
+      return;
+    }
+
+    if (action === 'relay') {
+      entry.recovery = { ...entry.recovery, relayTried: true };
+      entry.link.relay();
+      armRecovery(entry, polite, false);
+      return;
+    }
+
+    if (action === 'lost') {
+      entry.lost = true;
+      return;
+    }
+
+    // Only a disconnect gets a grace timer; a polite peer's wait is passive and must not re-arm.
+    if (entry.connectionState === 'disconnected') armRecovery(entry, polite, true);
+  }
+
   function removePeer(socketId: string): void {
     const entry = peers.get(socketId);
     if (entry === undefined) return;
 
+    clearRecoveryTimer(entry);
     entry.channel.close();
     entry.link.close();
     peers.delete(socketId);

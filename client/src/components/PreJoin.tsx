@@ -3,7 +3,8 @@ import { DeviceSelect } from './DeviceSelect';
 import { DeviceIcon } from './icons';
 import { ParticipantTile } from './ParticipantTile';
 import { RoomCount } from './RoomCount';
-import { describeMediaError } from '../webrtc/media';
+import { openMedia } from '../webrtc/media';
+import { useServerStatus } from '../webrtc/useServerStatus';
 import type { JoinDetails } from '../webrtc/session';
 
 interface PreJoinProps {
@@ -41,22 +42,23 @@ export function PreJoin({ roomId, count, capacity, onJoin }: PreJoinProps): JSX.
     let cancelled = false;
 
     async function acquire(): Promise<void> {
-      try {
-        const next = await navigator.mediaDevices.getUserMedia({
+      const opened = await openMedia(
+        (constraints) => navigator.mediaDevices.getUserMedia(constraints),
+        {
           video: cameraId === '' ? true : { deviceId: { exact: cameraId } },
           audio: microphoneId === '' ? true : { deviceId: { exact: microphoneId } },
-        });
-        if (cancelled) {
-          next.getTracks().forEach((track) => track.stop());
-          return;
-        }
-        held.current?.getTracks().forEach((track) => track.stop());
-        held.current = next;
-        setStream(next);
-        setMediaError(null);
-      } catch (error) {
-        if (!cancelled) setMediaError(describeMediaError(error));
+        },
+      );
+
+      if (cancelled) {
+        opened.stream?.getTracks().forEach((track) => track.stop());
+        return;
       }
+
+      held.current?.getTracks().forEach((track) => track.stop());
+      held.current = opened.stream;
+      setStream(opened.stream);
+      setMediaError(opened.error);
 
       const devices: MediaDevices | undefined = navigator.mediaDevices;
       const found =
@@ -86,6 +88,7 @@ export function PreJoin({ roomId, count, capacity, onJoin }: PreJoinProps): JSX.
     stream?.getVideoTracks().forEach((track) => (track.enabled = cameraOn));
   }, [stream, micOn, cameraOn]);
 
+  const server = useServerStatus();
   const named = displayName.trim() !== '';
   const full = count !== null && count >= capacity;
 
@@ -165,9 +168,15 @@ export function PreJoin({ roomId, count, capacity, onJoin }: PreJoinProps): JSX.
           </button>
         </div>
 
+        {server.waking && !server.connected && (
+          <p className="font-mono text-[10px] tracking-[0.08em] uppercase opacity-70">
+            Waking the server up — this can take up to a minute
+          </p>
+        )}
+
         <button
           type="button"
-          disabled={!ready || !named || full}
+          disabled={!ready || !named || full || !server.connected}
           onClick={() => {
             handedOver.current = stream !== null;
             onJoin({

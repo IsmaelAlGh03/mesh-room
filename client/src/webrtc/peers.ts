@@ -1,4 +1,5 @@
 import type { SignalData } from '../types';
+import { iceServers } from './ice';
 
 export interface PeerLinkOptions {
   connection: RTCPeerConnection;
@@ -11,6 +12,8 @@ export interface PeerLinkOptions {
 
 export interface PeerLink {
   accept(data: SignalData): Promise<void>;
+  restart(): void;
+  relay(): void;
   close(): void;
 }
 
@@ -82,6 +85,11 @@ export function createPeerLink(options: PeerLinkOptions): PeerLink {
 
   return {
     accept,
+    restart: () => connection.restartIce(),
+    relay: () => {
+      connection.setConfiguration({ iceServers: iceServers(), iceTransportPolicy: 'relay' });
+      connection.restartIce();
+    },
     close: () => connection.close(),
   };
 }

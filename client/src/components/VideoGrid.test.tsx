@@ -13,6 +13,7 @@ function peers(count: number): PeerParticipant[] {
     quality: null,
     micOn: true,
     cameraOn: true,
+    lost: false,
   }));
 }
 
@@ -82,6 +83,15 @@ describe('VideoGrid', () => {
 
     expect(container.querySelector('svg[data-overlay="links"] path[data-link]')).toBeInTheDocument();
     expect(container.querySelector('[data-dimmed="true"]')).toBeInTheDocument();
+  });
+
+  it('forwards a lost peer through to its tile', () => {
+    const [only] = peers(1);
+    const participants = [{ ...only, lost: true }] as PeerParticipant[];
+
+    render(<VideoGrid localStream={null} participants={participants} />);
+
+    expect(screen.getByText('Link failed')).toBeInTheDocument();
   });
 
   it('draws nothing over the grid in call view', () => {
