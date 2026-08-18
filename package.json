@@ -12,9 +12,14 @@
     "test:server": "cd server && npm test",
     "test:client": "cd client && npm test",
     "test": "npm run test:server && npm run test:client",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.2.0",
+    "concurrently": "^9.1.0",
+    "typescript": "^7.0.2"
   }
 }
